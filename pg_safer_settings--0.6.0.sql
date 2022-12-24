@@ -1,0 +1,920 @@
+-- complain if script is sourced in psql, rather than via CREATE EXTENSION
+\echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
+
+--------------------------------------------------------------------------------------------------------------
+
+comment
+    on extension pg_safer_settings
+    is $markdown$
+# The `pg_safer_settings` PostgreSQL extension
+
+`pg_safer_settings` provides a handful of functions and mechanisms to make
+dealing with settings in Postgres a bit … safer.
+
+## Rationalization and usage patterns
+
+Out of the box, PostgreSQL offers [a
+mechanism](#rehashing-how-settings-work-in-postgresql) for custom settings, but
+with a couple of caveats:
+
+1. Every `ROLE` can read (`SHOW`) most settings.
+2. Every `ROLE` can override (`SET`) most settings for the current session or
+   transaction.
+3. There is no type checking for settings; they are text values; you may not
+   discover that they are faulty until you read them.
+
+Indeed, it is not possible to define a custom setting with restricted access.
+
+### Forcing settings for databases or roles
+
+Let's first look at limitation ② that any `ROLE` can override a
+`current_setting()`, even though an administrator may wish to force a
+database-wide setting value or force a specific value for a specific role.
+
+dba.stackexchange.com is filled with questions from users trying to do just
+that.  They try something like the following:
+
+```sql
+ALTER DATABASE mydb
+    SET app.settings.bla = 'blegh';
+ALTER ROLE myrole
+    IN DATABASE mydb
+    SET app.settings.bla TO DEFAULT;
+```
+
+\[See the [`ALTER
+ROLE`](https://www.postgresql.org/docs/current/sql-alterrole.html) and [`ALTER
+DATABASE`](https://www.postgresql.org/docs/current/sql-alterdatabase.html)
+documentation for details and possibilities of the syntax.]
+
+The problem is that setting the configuration values in that way only changes
+the _defaults_.  These defaults can be changed by the user (in this case
+`myrole`):
+
+```sql
+-- To change for the duration of the session:
+SET app.settings.bla = 'blegherrerbypass';  -- or:
+SELECT set_config('app.settings.bla', 'blegherrerbypass', false);
+
+-- To change for the duration of the transaction:
+SET LOCAL app.settings.bla = 'blegherrerbypass';  -- or:
+SELECT set_config('app.settings.bla', 'blegherrerbypass', true);
+```
+
+The workaround is to _ignore_ such setting overrides that are local to
+transactions or sessions.  To that end, `pg_safer_settings` provides the
+`pg_db_setting()` function, which reads the setting value directly from
+Postgres its `pg_db_role_settings` catalog, thereby bypassing clever hacking
+attempts.
+
+`pg_db_setting()` does not resolve caveat ① or ③—the fact that settings are
+world-readable and plain text, respectively.
+
+### Type-safe, read-restricted settings
+
+To maintain settings that are type-safe and can be read/write-restricted _per_
+setting, `pg_safer_settings` offers the ability to create and maintain your own
+configuration tables.  Please note that these are _not_ your average settings
+table that tend to come with all kinds of SQL-ignorant frameworks.  The
+configuration tables made by `pg_safer_settings` are singletons, and stores
+their settings in columns, _not_ rows.  You as the DB designer add columns, and
+the triggers on the table maintain an `IMMUTABLE` function for you with the
+current column value (except if you want the value to be secret).  See the
+[`pg_safer_settings_table`](#table-pg_safer_settings_table) documentation for
+details.
+
+## Rehashing how settings work in PostgreSQL
+
+| Command  | Function                             |
+| -------- | ------------------------------------ |
+| `SET`    | `set_config(text, text, bool)`       |
+| `SHOW`   | `current_setting(text, text, bool)`  |
+
+
+<?pg-readme-reference?>
+
+<?pg-readme-colophon?>
+$markdown$;
+
+--------------------------------------------------------------------------------------------------------------
+
+create or replace function pg_safer_settings_readme()
+    returns text
+    volatile
+    set search_path from current
+    set pg_readme.include_view_definitions to 'true'
+    set pg_readme.include_routine_definitions_like to '{test__%}'
+    language plpgsql
+    as $plpgsql$
+declare
+    _readme text;
+begin
+    create extension if not exists pg_readme;
+
+    _readme := pg_extension_readme('pg_safer_settings'::name);
+
+    raise transaction_rollback;  -- to `DROP EXTENSION` if we happened to `CREATE EXTENSION` for just this.
+exception
+    when transaction_rollback then
+        return _readme;
+end;
+$plpgsql$;
+
+comment
+    on function pg_safer_settings_readme()
+    is $markdown$
+This function utilizes the `pg_readme` extension to generate a thorough README
+for this extension, based on the `pg_catalog` and the `COMMENT` objects found
+therein.
+$markdown$;
+
+--------------------------------------------------------------------------------------------------------------
+
+create function pg_db_setting(pg_setting_name$ text, pg_role$ regrole = 0)
+    returns text
+    stable
+--    security definer
+    return (
+        select
+            regexp_replace(expanded_settings.raw_setting, E'^[^=]+=', '')
+        from
+            pg_catalog.pg_db_role_setting
+        inner join
+            pg_catalog.pg_database
+            on pg_database.oid = pg_db_role_setting.setdatabase
+        cross join lateral
+            unnest(pg_db_role_setting.setconfig) as expanded_settings(raw_setting)
+        where
+            pg_database.datname = current_database()
+            and pg_db_role_setting.setrole = coalesce(
+                pg_role$,
+                0  -- 0 means “not role-specific”
+            )
+            and expanded_settings.raw_setting like pg_setting_name$ || '=%'
+        limit 1
+    );
+
+comment
+    on function pg_db_setting(text, regrole)
+    is $markdown$
+`pg_db_setting()` allows you to look up a setting value as `SET` for a
+`DATABASE` or `ROLE`, ignoring the local (transaction or session) value for
+that setting.
+
+Example:
+
+```sql
+CREATE DATABASE mydb;
+CONNECT TO mydb
+CREATE ROLE myrole;
+ALTER DATABASE mydb
+    SET app.settings.bla = 1::text;
+ALTER ROLE myrole
+    IN DATABASE mydb
+    SET app.settings.bla = 2::text;
+SET ROLE myrole;
+SET app.settings.bla TO 3::text;
+SELECT current_setting('app.settings.bla', true);  -- '3'
+SELECT pg_db_role_setting('app.settings.bla');  -- '1'
+SELECT pg_db_role_setting('app.settings.bla', current_user);  -- '2'
+```
+$markdown$;
+
+create procedure test__pg_db_setting()
+    set search_path from current
+    set plpgsql.check_asserts to true
+    set pg_readme.include_this_routine_definition to true
+    language plpgsql
+    as $$
+begin
+    execute 'ALTER DATABASE ' || current_database()
+        || ' SET pg_safer_settings.test_pg_db_setting = ''foo''';
+    assert pg_db_setting('pg_safer_settings.test_pg_db_setting') = 'foo';
+
+    set pg_safer_settings.settings.test_pg_db_setting = 'bar';
+    assert pg_db_setting('pg_safer_settings.test_pg_db_setting') = 'foo';
+
+    assert pg_db_setting('pg_safer_settings.unknown_setting') is null;
+
+    create role __test_role;
+    execute 'ALTER ROLE __test_role IN DATABASE ' || current_database()
+        || ' SET pg_safer_settings.test_pg_db_setting = ''foobar''';
+    assert pg_db_setting('pg_safer_settings.test_pg_db_setting', '__test_role') = 'foobar';
+    assert pg_db_setting('pg_safer_settings.test_pg_db_setting') = 'foo';
+
+    raise transaction_rollback;
+exception
+    when transaction_rollback then
+end;
+$$;
+
+comment
+    on procedure test__pg_db_setting()
+    is $markdown$
+This routine tests the `pg_db_setting()` function.
+
+The routine name is compliant with the `pg_tst` extension. An intentional
+choice has been made to not _depend_ on the `pg_tst` extension its test runner
+or developer-friendly assertions to keep the number of inter-extension
+dependencies to a minimum.
+$markdown$;
+
+--------------------------------------------------------------------------------------------------------------
+
+do $$
+begin
+    if to_regproc('pg_installed_extension_version(name)') is null then
+        create function pg_installed_extension_version(name)
+            returns text
+            returns null on null input
+            stable
+            leakproof
+            parallel safe
+            language sql
+            return (
+                select
+                    pg_extension.extversion
+                from
+                    pg_catalog.pg_extension
+                where
+                    pg_extension.extname = $1
+            );
+
+        comment
+            on function pg_installed_extension_version(name)
+            is $markdown$
+This function belongs to the `pg_safer_settings` extensions, but could have
+belonged to any other extension, if it had been defined _before_ `CREATE
+EXTENSION pg_safer_settings` was run.
+$markdown$;
+
+        alter extension pg_safer_settings
+            drop function pg_installed_extension_version(name);
+    end if;
+end;
+$$;
+
+--------------------------------------------------------------------------------------------------------------
+
+create table pg_safer_settings_table (
+    table_regclass regclass
+        primary key
+    ,table_schema name
+        not null
+        default current_schema
+    ,table_name name
+        not null
+        default 'cfg'
+    ,unique (table_schema, table_name)
+    ,setting_getter_prefix name
+        not null
+        default 'current_'
+    ,secret_setting_prefix name
+        not null
+        default 'secret_'
+    ,pg_safer_settings_version text
+        not null
+        default pg_installed_extension_version('pg_safer_settings')
+);
+
+comment
+    on table pg_safer_settings_table
+    is $markdown$
+Insert a row in `pg_safer_settings_table` to have its triggers automatically
+create _your_ configuration table, plus the requisite triggers that create and
+replace the `current_<cfg_column>()` functions as needed.
+
+`pg_safer_settings_table` has default for all its columns.  In the simplest
+form, you can do a default-only insert:
+
+```sql
+CREATE SCHEMA ext;
+CREATE SCHEMA myschema;
+SET search_path TO myschema, ext;
+
+CREATE EXTENSION pg_safer_settings WITH SCHEMA ext;
+
+INSERT INTO ext.pg_safer_settings_table DEFAULT VALUES
+    RETURNING *;
+```
+$markdown$;
+
+comment
+    on column pg_safer_settings_table.setting_getter_prefix
+    is $markdown$
+The automatically created/replaced setting getter functions will be named by
+prepending `setting_getter_prefix` to the column name for that setting.
+
+The default value (`'current_'`) of the `setting_getter_prefix` follows the
+naming of Postgres its own `current_setting()` function name.
+$markdown$;
+
+comment
+    on column pg_safer_settings_table.secret_setting_prefix
+    is $markdown$
+When a setting's column name starts with the `secret_setting_prefix`, its
+automatically generated getter function will be a `STABLE` function that, when
+called, looks up the column value in the table rather than the default
+`IMMUTABLE` function (with the configuration value cached in the `RETURN`
+clause) that would otherwise have been created.
+
+The reason for this is that the schema for functions can be retrieved by
+everyone, and thus any role would be able to read the secret value even if that
+role has not been granted `SELECT` privileges on the column (nor `EXECUTE`
+access to the `IMMUTABLE` function).
+$markdown$;
+
+select pg_catalog.pg_extension_config_dump('pg_safer_settings_table', '');
+
+--------------------------------------------------------------------------------------------------------------
+
+create function pg_safer_settings_table__register()
+    returns trigger
+    set search_path from current
+    language plpgsql
+    as $$
+declare
+    _current_table_schema name;
+    _current_table_name name;
+    _col_name name;
+begin
+    assert tg_when in ('BEFORE', 'AFTER');
+    assert tg_level = 'ROW';
+    assert tg_op in ('INSERT', 'UPDATE', 'DELETE');
+    assert tg_table_schema = current_schema;
+    assert tg_table_name = 'pg_safer_settings_table';
+    assert tg_nargs = 0;
+
+    if tg_op = 'INSERT' and tg_when = 'BEFORE' then
+        if NEW.table_regclass is not null or exists(
+            select
+            from
+                pg_catalog.pg_class
+            where
+                pg_class.relnamespace = NEW.table_schema::regnamespace::oid
+                and pg_class.relname = NEW.table_name
+        )
+        then
+            raise exception 'The configuration table should not already exist;'
+                ' instead, this trigger is supposed to make it';
+        end if;
+
+        execute 'CREATE TABLE ' || quote_ident(NEW.table_schema) || '.' || quote_ident(NEW.table_name) || '('
+            || 'is_singleton BOOLEAN NOT NULL DEFAULT TRUE CONSTRAINT check_true CHECK (is_singleton = TRUE)'
+            || ',inserted_at TIMESTAMPTZ NOT NULL DEFAULT now()'
+            || ',updated_at TIMESTAMPTZ NOT NULL DEFAULT now()'
+            || ')';
+
+        NEW.table_regclass := (NEW.table_schema || '.' || NEW.table_name)::regclass;
+
+        execute 'COMMENT'
+            || ' ON TABLE ' || NEW.table_regclass::text
+            || ' IS ''Add your own (typed and constrained!) columns to this table as needed.''';
+
+        execute 'CREATE TRIGGER create_or_replace_getters'
+            || ' AFTER INSERT OR UPDATE ON ' || NEW.table_regclass::text
+            || ' FOR EACH ROW'
+            || ' EXECUTE FUNCTION pg_safer_settings_table__create_or_replace_getters()';
+
+        execute 'CREATE TRIGGER no_delete'
+            || ' BEFORE DELETE ON ' || NEW.table_regclass::text
+            || ' FOR EACH STATEMENT'
+            || ' EXECUTE FUNCTION no_delete()';
+
+        execute 'COMMENT ON TRIGGER no_delete ON ' || NEW.table_regclass::text
+            || ' IS $markdown$
+The `no_delete()` trigger function comes from the very unpretentious
+[`pg_utility_trigger_functions`](https://github.com/bigsmoke/pg_utility_trigger_functions)
+extension.
+$markdown$';
+
+    elsif tg_op = 'INSERT' and tg_when = 'AFTER' then
+        execute 'INSERT INTO ' || NEW.table_regclass::text || ' VALUES (DEFAULT, DEFAULT, DEFAULT)';
+
+    elsif tg_op = 'UPDATE' and tg_when = 'BEFORE' then
+        NEW.updated_at := now();
+
+        select
+            pg_class.relnamespace::name
+            ,pg_class.relname
+        from
+            pg_catalog.pg_class
+        where
+            pg_class.oid = NEW.table_regclass
+        into
+            _current_table_schema
+            ,_current_table_name
+        ;
+        if _current_table_schema != NEW.table_schema then
+            raise notice 'Table has been moved from the % schema to %; updating record in % te reflect this.',
+                NEW.table_schema, _current_table_schema, tg_table_name;
+            NEW.table_schema := _current_table_schema;
+        end if;
+        if _current_table_name != NEW.table_name then
+            raise notice 'Table has been renamed from % to %; updating record in % to reflect this.',
+                NEW.table_name, _current_table_name, tg_table_name;
+            NEW.table_name := _current_table_name;
+        end if;
+        if NEW.table_name != OLD.table_name then
+            execute 'ALTER TABLE ' || NEW.table_regclass::text || ' RENAME TO ' || NEW.table_name;
+        end if;
+        if NEW.table_schema != OLD.table_schema then
+            execute 'ALTER TABLE ' || NEW.table_regclass::text || ' SET SCHEMA ' || NEW.table_schema;
+        end if;
+        if NEW.setting_getter_prefix != OLD.setting_getter_prefix then
+            raise exception 'Changing `setting_getter_prefix` not supported (yet).';
+        end if;
+        if NEW.secret_setting_prefix != OLD.secret_setting_prefix then
+            raise exception 'Changing `secret_setting_prefix` not supported (yet).';
+        end if;
+
+    elsif tg_op = 'DELETE' and tg_when = 'AFTER' then
+        for _col_name in
+            select
+                column_name
+            from
+                pg_safer_settings_table_columns(OLD.table_schema, OLD.table_name)
+        loop
+            execute 'DROP FUNCTION ' || quote_ident(OLD.table_schema) || '.'
+                || quote_ident(OLD.setting_getter_prefix || _col_name) || '()';
+        end loop;
+        execute 'DROP TABLE ' || OLD.table_regclass::name;
+    end if;
+
+    if tg_op in ('INSERT', 'UPDATE') then
+        return NEW;
+    end if;
+    return OLD;
+end;
+$$;
+
+comment
+    on function pg_safer_settings_table__register()
+    is $markdown$
+This trigger function creates and maintains the safer settings tables that are
+registered with it.  To get this trigger
+
+$markdown$;
+
+create trigger before_trigger
+    before insert or update or delete on pg_safer_settings_table
+    for each row
+    execute function pg_safer_settings_table__register();
+
+create trigger after_trigger
+    after insert or update or delete on pg_safer_settings_table
+    for each row
+    execute function pg_safer_settings_table__register();
+
+--------------------------------------------------------------------------------------------------------------
+
+/*
+create function pg_safer_settings_table__ddl_event_handler()
+    returns event_trigger
+    set search_path from current
+    language plpgsql
+    as $$
+begin
+    pg_event_trigger_ddl_commands()
+end;
+$$;
+
+create event trigger pg_safer_settings_table__ddl_event_handler
+    on ddl_command_end
+    when TAG in ('ALTER TABLE')
+    execute function pg_safer_settings_table__ddl_event_handler();
+*/
+
+--------------------------------------------------------------------------------------------------------------
+
+create function pg_safer_settings_table_columns(table_schema$ name, table_name$ name)
+    returns setof information_schema.columns
+    stable
+    returns null on null input
+    leakproof
+    parallel safe
+    set search_path from current
+    set pg_readme.include_this_routine_definition to true
+    language sql
+begin atomic
+    select
+        columns.*
+    from
+        information_schema.columns
+    where
+        columns.table_schema = table_schema$
+        and columns.table_name = table_name$
+        and columns.column_name != any (array['is_singleton', 'inserted_at', 'updated_at']);
+end;
+
+--------------------------------------------------------------------------------------------------------------
+
+create function pg_safer_settings_table__create_or_replace_getters()
+    returns trigger
+    set search_path from current
+    language plpgsql
+    as $$
+declare
+    _func_name name;
+    _col_name name;
+    _col_type text;
+    _val_old text;
+    _val_new text;
+    _pg_safer_settings_table pg_safer_settings_table;
+    _col_privilege information_schema.column_privileges;
+begin
+    assert tg_when = 'AFTER';
+    assert tg_level = 'ROW';
+    assert tg_op in ('INSERT', 'UPDATE');
+    assert tg_relid in (select table_regclass from pg_safer_settings_table);
+
+    select
+        *
+    into
+        _pg_safer_settings_table
+    from
+        pg_safer_settings_table
+    where
+        pg_safer_settings_table.table_regclass = tg_relid
+    ;
+
+    for
+        _col_name
+        ,_col_type
+    in select
+        columns.column_name
+        ,coalesce(
+            quote_ident(columns.domain_schema) || '.' || quote_ident(columns.domain_name),
+            quote_ident(columns.udt_schema) || '.' || quote_ident(columns.udt_name)
+        )
+    from
+        pg_safer_settings_table_columns(tg_table_schema, tg_table_name) as columns
+    loop
+        _func_name := _pg_safer_settings_table.setting_getter_prefix || _col_name;
+
+        execute format('SELECT %s.%I::TEXT', '$1', _col_name) using NEW into _val_new;
+        if tg_op = 'UPDATE' then
+            execute format('SELECT %s.%I::TEXT', '$1', _col_name) using OLD into _val_old;
+        else
+            _val_old := null;
+        end if;
+        if _val_old is distinct from _val_new
+            or to_regproc(quote_ident(tg_table_schema) || '.' || quote_ident(_func_name) || '()') is null
+        then
+            if _col_name like _pg_safer_settings_table.secret_setting_prefix || '%' then
+                execute 'CREATE OR REPLACE FUNCTION '
+                        || quote_ident(tg_table_schema) || '.' || quote_ident(_func_name) || '()'
+                        || ' RETURNS ' || _col_type
+                        || ' LANGUAGE SQL'
+                        || ' STABLE LEAKPROOF PARALLEL SAFE'
+                        || ' RETURN (SELECT ' || quote_ident(_col_name)
+                            || ' FROM ' || quote_ident(tg_table_schema) || '.' || quote_ident(tg_table_name)
+                        || ')';
+            else
+                execute 'CREATE OR REPLACE FUNCTION '
+                        || quote_ident(tg_table_schema) || '.' || quote_ident(_func_name) || '()'
+                        || ' RETURNS ' || _col_type
+                        || ' LANGUAGE SQL'
+                        || ' IMMUTABLE LEAKPROOF PARALLEL SAFE'
+                        || ' RETURN ' || quote_nullable(_val_new) || '::' || _col_type;
+            end if;
+        end if;
+
+        for
+            _col_privilege
+        in
+            select
+                column_privileges.*
+            from
+                information_schema.column_privileges
+            where
+                column_privileges.table_schema = tg_table_schema
+                and column_privileges.table_name = tg_table_name
+                and column_privileges.column_name = _col_name
+                and column_privileges.privilege_type = 'SELECT'
+        loop
+            execute 'GRANT EXECUTE ON FUNCTION '
+                || quote_ident(tg_table_schema) || '.' || quote_ident(_func_name) || '()'
+                || ' TO ' || quote_ident(_col_privilege.grantee)
+                || case when _col_privilege.is_grantable = 'YES' then ' WITH GRANT OPTION' else '' end;
+        end loop;
+    end loop;
+
+    return NEW;
+end;
+$$;
+
+comment
+    on function pg_safer_settings_table__create_or_replace_getters()
+    is $markdown$
+This trigger function automatically `CREATE OR REPLACE`s, for each
+configuration column in the table that it is attached to: an `IMMUTABLE`
+function that returns the most up-to-date value for that column.
+$markdown$;
+
+--------------------------------------------------------------------------------------------------------------
+
+create function pg_safer_settings_table__col_must_mirror_current_setting()
+    returns trigger
+    set search_path from current
+    language plpgsql
+    as $$
+declare
+    _cfg_column name;
+    _pg_setting_name text;
+    _db_setting_value text;
+    _new_value_text text;
+begin
+    assert tg_when = 'BEFORE';
+    assert tg_level = 'ROW';
+    assert tg_op in ('INSERT', 'UPDATE');
+    assert tg_table_schema = current_schema;
+    assert tg_relid in (select table_regclass from pg_safer_settings_table);
+    assert tg_nargs = 2;
+
+    _cfg_column := tg_argv[0];
+    _pg_setting_name := tg_argv[1];
+
+    execute format('SELECT %s.%I::TEXT', '$1', _cfg_column) using NEW into _new_value_text;
+
+    if current_setting(_pg_setting_name, true) is null then
+        raise exception 'current_setting(''%'', true) IS NULL;'
+            ' therefore the `%.%.%` column has to be `NULL` as well.',
+            _pg_setting_name, tg_table_schema, tg_table_name, _cfg_column;
+    end if;
+
+    if current_setting(_pg_setting_name, true) != _new_value_text then
+        raise exception 'current_setting(''%'', true) ≠ ''%'' = new `%.%.%` value.',
+            _pg_setting_name, _new_value_text, tg_table_schema, tg_table_name, _cfg_column;
+    end if;
+
+    return true;
+end;
+$$;
+
+comment
+    on function pg_safer_settings_table__col_must_mirror_current_setting()
+    is $markdown$
+If you want to forbid changing a configuration table column value to something
+that is not in sync with the current value of the given setting, use this
+trigger function.
+
+Use it as a constraint trigger:
+
+```sql
+create constraint trigger must_mirror_db_role_setting__max_plumbus_count
+    after insert or update on your.cfg
+    for each row
+    execute function safer_settings_table__col_must_mirror_db_role_setting(
+        'max_plumbus_count',
+        'app.settings.max_plumbus_count'
+    );
+```
+$markdown$;
+
+--------------------------------------------------------------------------------------------------------------
+
+create function pg_safer_settings_table__col_must_mirror_db_role_setting()
+    returns trigger
+    set search_path from current
+    language plpgsql
+    as $$
+declare
+    _cfg_column name;
+    _pg_setting_name text;
+    _regrole regrole;
+    _db_setting_value text;
+    _new_value_text text;
+begin
+    assert tg_when = 'AFTER';
+    assert tg_level = 'ROW';
+    assert tg_op in ('INSERT', 'UPDATE');
+    assert tg_relid in (select table_regclass from pg_safer_settings_table);
+    assert tg_nargs between 2 and 3;
+
+    _cfg_column := tg_argv[0];
+    _pg_setting_name := tg_argv[1];
+    _regrole := null;
+    if tg_nargs > 2 then
+        _regrole := tg_argv[2];
+    end if;
+
+    execute format('SELECT %s.%I::TEXT', '$1', _cfg_column) using NEW into _new_value_text;
+
+    _db_setting_value := app.pg_db_setting(_pg_setting_name, _regrole);
+
+    if _db_setting_value is distinct from _new_value_text then
+        raise exception 'New `%.%.%` value % is not in sync with DB(-role)-level setting ''%''.',
+            tg_table_schema, tg_table_name, _cfg_column, _new_value_text, _pg_setting_name;
+    end if;
+
+    return NEW;
+end;
+$$;
+
+comment
+    on function pg_safer_settings_table__col_must_mirror_db_role_setting()
+    is $markdown$
+If you want to forbid changing a configuration table column value to something
+that is not in sync with the given setting (for the optionally given `ROLE`)
+`SET` on the `DATABASE` level, this trigger function is your friend.
+
+Use it as a constraint trigger:
+
+```sql
+create constraint trigger must_mirror_db_role_setting__deployment_tier
+    after insert or update on your.cfg
+    for each row
+    execute function safer_settings_table__col_must_mirror_db_role_setting(
+        'deployment_tier',
+        'app.settings.deployment_tier'
+    );
+```
+
+Alternatively, you may wish to `SET` the PostgreSQL setting automatically
+whenever the column is `UPDATE`d. In that case, use the
+`pg_safer_settings_table__mirror_col_to_db_role_setting()` trigger function
+instead.
+
+Note that there is _no way_—not even using event triggers—to automatically
+catch configuration changes as the `ALTER DATABASE` level as they happen.
+Triggers using this function will only catch incompatibilities when the trigger
+is … triggered.
+$markdown$;
+
+--------------------------------------------------------------------------------------------------------------
+
+create function pg_safer_settings_table__mirror_col_to_db_role_setting()
+    returns trigger
+    set search_path from current
+    language plpgsql
+    as $$
+declare
+    _cfg_column name;
+    _pg_setting_name text;
+    _regrole regrole;
+    _db_setting_value text;
+    _new_value_text text;
+begin
+    assert tg_when = 'AFTER';
+    assert tg_level = 'ROW';
+    assert tg_op in ('INSERT', 'UPDATE');
+    assert tg_relid in (select table_regclass from pg_safer_settings_table);
+    assert tg_nargs between 2 and 3;
+
+    _cfg_column := tg_argv[0];
+    _pg_setting_name := tg_argv[1];
+    _regrole := null;
+    if tg_nargs > 2 then
+        _regrole := tg_argv[2];
+    end if;
+
+    execute format('SELECT %s.%I::TEXT', '$1', _cfg_column) using NEW into _new_value_text;
+
+    _db_setting_value := app.pg_db_setting(_pg_setting_name, _regrole);
+
+    if _db_setting_value is distinct from _new_value_text then
+        if _regrole is null then
+            execute 'ALTER DATABASE ' || current_database() || ' SET ' || _pg_setting_name
+                || ' TO ' || quote_literal(_new_value_text);
+        else
+            execute 'ALTER ROLE ' || _regrole::text
+                || ' IN DATABASE ' || current_database()
+                || ' SET ' ||  _pg_setting_name || ' TO ' || quote_literal(_new_value_text);
+        end if;
+    end if;
+
+    return NEW;
+end;
+$$;
+
+comment
+    on function pg_safer_settings_table__mirror_col_to_db_role_setting()
+    is $markdown$
+If, for some reason, you find it useful to keep a configuration column value
+synced to a database/role-level setting, this trigger function has your back.
+
+For the opposite requirement—to enforce equality of a configuration column
+value to a database (role) setting—, see the
+`pg_safer_settings_table__mirror_col_to_db_role_setting()` trigger function.
+$markdown$;
+
+--------------------------------------------------------------------------------------------------------------
+
+/*
+create domain @extschema@.deployment_tier text
+    constraint check_whitelist
+        check (value in ('testing', 'development', 'staging', 'acceptance', 'production'));
+
+--------------------------------------------------------------------------------------------------------------
+
+alter table @extschema@.cfg
+    add deployment_tier @extschema@.deployment_tier
+        not null
+        default coalesce(
+            -- Take the current deployment tier from the (DB-level, or whatever-level) setting.
+            -- The choice for the `app.settings.` prefix is based on the fact that `app.settings.*` can
+            -- be set from `PGRST_APP_SETTINGS_*` environment variables.  And, while this particular
+            -- setting is not meant to be set via PostgREST, it's good to be consistent.
+            current_setting('app.settings.deployment_tier', true),
+            'development'
+        );
+
+create constraint trigger must_mirror_db_role_setting__deployment_tier
+    after insert or update on @extschema@.cfg
+    for each row
+    execute function @extschema@.pg_safer_settings_table__must_mirror_db_role_setting(
+        'deployment_tier',
+        'app.settings.deployment_tier'
+    );
+
+grant select (deployment_tier)
+    on @extschema@.cfg
+    to public;
+
+grant execute
+    on function @extschema@.current_deployment_tier
+    to public;
+
+--------------------------------------------------------------------------------------------------------------
+
+create function pg_safe_settings_table__add_deployment_tier_column(cfg_table$ regclass)
+    returns name
+    set search_path from current
+    language plpgsql
+    as $$
+begin
+    assert $1 in (select table_regclass from pg_safer_settings_table);
+end;
+$$;
+*/
+
+--------------------------------------------------------------------------------------------------------------
+
+create procedure test__pg_safer_settings_table()
+    set search_path from current
+    set pg_readme.include_this_routine_definition to true
+    language plpgsql
+    as $$
+declare
+    _pg_safer_settings_table pg_safer_settings_table;
+    _cfg_record record;
+begin
+    insert into pg_safer_settings_table
+        (table_name)
+    values
+        ('test__cfg')
+    returning
+        *
+    into
+        _pg_safer_settings_table
+    ;
+    assert _pg_safer_settings_table.setting_getter_prefix = 'current_';
+
+    select * into _cfg_record from test__cfg;
+    assert _cfg_record.is_singleton;
+
+    alter table test__cfg
+        add boolean_test_setting bool
+            not null
+            default false;
+    update test__cfg
+        set boolean_test_setting = default;
+
+    select * into _cfg_record from test__cfg;
+    assert _cfg_record.boolean_test_setting = false;
+    assert current_boolean_test_setting() = false;
+    assert (
+        select
+            provolatile = 'i'
+        from
+            pg_proc
+        where
+            pronamespace = current_schema::regnamespace
+            and proname = 'current_boolean_test_setting'
+    );
+
+    alter table test__cfg
+        add secret_test_setting text;
+    update test__cfg
+        set secret_test_setting = 'Th1s1ss3cr3t';
+    assert current_secret_test_setting() = 'Th1s1ss3cr3t';
+    assert (
+        select
+            provolatile = 's'
+        from
+            pg_proc
+        where
+            pronamespace = current_schema::regnamespace
+            and proname = 'current_secret_test_setting'
+    );
+
+    delete from pg_safer_settings_table where table_name = 'test__cfg';
+
+    raise transaction_rollback;
+exception
+    when transaction_rollback then
+end;
+$$;
+
+--------------------------------------------------------------------------------------------------------------
