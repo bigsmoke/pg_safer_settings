@@ -1,11 +1,11 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.6.0
-pg_readme_generated_at: 2022-12-24 17:31:13.283695+00
-pg_readme_version: 0.3.1
+pg_extension_version: 0.6.1
+pg_readme_generated_at: 2023-01-07 18:00:18.493472+00
+pg_readme_version: 0.3.8
 ---
 
-# `pg_safer_settings` PostgreSQL extension
+# The `pg_safer_settings` PostgreSQL extension
 
 `pg_safer_settings` provides a handful of functions and mechanisms to make
 dealing with settings in Postgres a bit … safer.
@@ -89,6 +89,19 @@ details.
 | `SET`    | `set_config(text, text, bool)`       |
 | `SHOW`   | `current_setting(text, text, bool)`  |
 
+## The origins of `pg_safer_settings`
+
+`pg_safer_settings` was spun off from the PostgreSQL backend of FlashMQ.com—the
+[scalable MQTT hosting service](https://www.flashmq.com/) that supports
+millions of concurrent MQTT connections.  Its release as a separate extension
+was part of a succesfull effort to modularize the FlashMQ.com PostgreSQL schemas
+and, in so doing:
+
+  - reduce and formalize the interdepencies between parts of the system;
+  - let the public gaze improve the discipline around testing, documentation
+    and other types of polish; and
+  - share the love back to the open source / free software community.
+
 ## Object reference
 
 ### Tables
@@ -96,6 +109,24 @@ details.
 There are 1 tables that directly belong to the `pg_safer_settings` extension.
 
 #### Table: `pg_safer_settings_table`
+
+Insert a row in `pg_safer_settings_table` to have its triggers automatically
+create _your_ configuration table, plus the requisite triggers that create and
+replace the `current_<cfg_column>()` functions as needed.
+
+`pg_safer_settings_table` has default for all its columns.  In the simplest
+form, you can do a default-only insert:
+
+```sql
+CREATE SCHEMA ext;
+CREATE SCHEMA myschema;
+SET search_path TO myschema, ext;
+
+CREATE EXTENSION pg_safer_settings WITH SCHEMA ext;
+
+INSERT INTO ext.pg_safer_settings_table DEFAULT VALUES
+    RETURNING *;
+```
 
 The `pg_safer_settings_table` table has 6 attributes:
 
@@ -144,11 +175,11 @@ The `pg_safer_settings_table` table has 6 attributes:
 6. `pg_safer_settings_table.pg_safer_settings_version` `text`
 
    - `NOT NULL`
-   - `DEFAULT pg_installed_extension_version('pg_safer_settings'::name)`
+   - `DEFAULT pg_safer_settings_version()`
 
 ### Routines
 
-#### Function: `pg_db_setting(text,regrole)`
+#### Function: `pg_db_setting (text, regrole)`
 
 `pg_db_setting()` allows you to look up a setting value as `SET` for a
 `DATABASE` or `ROLE`, ignoring the local (transaction or session) value for
@@ -176,14 +207,30 @@ Function arguments:
 
 | Arg. # | Arg. mode  | Argument name                                                     | Argument type                                                        | Default expression  |
 | ------ | ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
-|   `$1` |       `IN` | `pg_setting_name$`                                                | `text`                                                               |                     |
-|   `$2` |       `IN` | `pg_role$`                                                        | `regrole`                                                            | `0`                 |
+|   `$1` |       `IN` | `pg_setting_name$`                                                | `text`                                                               |  |
+|   `$2` |       `IN` | `pg_role$`                                                        | `regrole`                                                            | `0` |
 
 Function return type: `text`
 
 Function attributes: `STABLE`
 
-#### Function: `pg_safer_settings_readme()`
+#### Function: `pg_safer_settings_meta_pgxn ()`
+
+Returns the JSON meta data that has to go into the `META.json` file needed for
+[PGXN—PostgreSQL Extension Network](https://pgxn.org/) packages.
+
+The `Makefile` includes a recipe to allow the developer to: `make META.json` to
+refresh the meta file with the function's current output, including the
+`default_version`.
+
+And indeed, `pg_safer_settings` can be found on PGXN:
+https://pgxn.org/dist/pg_safer_settings/
+
+Function return type: `jsonb`
+
+Function attributes: `STABLE`
+
+#### Function: `pg_safer_settings_readme ()`
 
 This function utilizes the `pg_readme` extension to generate a thorough README
 for this extension, based on the `pg_catalog` and the `COMMENT` objects found
@@ -197,7 +244,7 @@ Function-local settings:
   *  `SET pg_readme.include_view_definitions TO true`
   *  `SET pg_readme.include_routine_definitions_like TO {test__%}`
 
-#### Function: `pg_safer_settings_table__col_must_mirror_current_setting()`
+#### Function: `pg_safer_settings_table__col_must_mirror_current_setting ()`
 
 If you want to forbid changing a configuration table column value to something
 that is not in sync with the current value of the given setting, use this
@@ -221,7 +268,7 @@ Function-local settings:
 
   *  `SET search_path TO ext, ext, pg_temp`
 
-#### Function: `pg_safer_settings_table__col_must_mirror_db_role_setting()`
+#### Function: `pg_safer_settings_table__col_must_mirror_db_role_setting ()`
 
 If you want to forbid changing a configuration table column value to something
 that is not in sync with the given setting (for the optionally given `ROLE`)
@@ -255,14 +302,14 @@ Function-local settings:
 
   *  `SET search_path TO ext, ext, pg_temp`
 
-#### Function: `pg_safer_settings_table_columns(name,name)`
+#### Function: `pg_safer_settings_table_columns (name, name)`
 
 Function arguments:
 
 | Arg. # | Arg. mode  | Argument name                                                     | Argument type                                                        | Default expression  |
 | ------ | ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
-|   `$1` |       `IN` | `table_schema$`                                                   | `name`                                                               |                     |
-|   `$2` |       `IN` | `table_name$`                                                     | `name`                                                               |                     |
+|   `$1` |       `IN` | `table_schema$`                                                   | `name`                                                               |  |
+|   `$2` |       `IN` | `table_name$`                                                     | `name`                                                               |  |
 
 Function return type: `SETOF information_schema.columns`
 
@@ -330,7 +377,7 @@ BEGIN ATOMIC
 END
 ```
 
-#### Function: `pg_safer_settings_table__create_or_replace_getters()`
+#### Function: `pg_safer_settings_table__create_or_replace_getters ()`
 
 This trigger function automatically `CREATE OR REPLACE`s, for each
 configuration column in the table that it is attached to: an `IMMUTABLE`
@@ -342,7 +389,7 @@ Function-local settings:
 
   *  `SET search_path TO ext, ext, pg_temp`
 
-#### Function: `pg_safer_settings_table__mirror_col_to_db_role_setting()`
+#### Function: `pg_safer_settings_table__mirror_col_to_db_role_setting ()`
 
 If, for some reason, you find it useful to keep a configuration column value
 synced to a database/role-level setting, this trigger function has your back.
@@ -357,7 +404,7 @@ Function-local settings:
 
   *  `SET search_path TO ext, ext, pg_temp`
 
-#### Function: `pg_safer_settings_table__register()`
+#### Function: `pg_safer_settings_table__register ()`
 
 This trigger function creates and maintains the safer settings tables that are
 registered with it.  To get this trigger
@@ -368,7 +415,15 @@ Function-local settings:
 
   *  `SET search_path TO ext, ext, pg_temp`
 
-#### Procedure: `test__pg_db_setting()`
+#### Function: `pg_safer_settings_version ()`
+
+Returns the currently (being) installed version of the `pg_safer_settings` extension.
+
+Function return type: `text`
+
+Function attributes: `STABLE`, `LEAKPROOF`, `PARALLEL SAFE`
+
+#### Procedure: `test__pg_db_setting ()`
 
 This routine tests the `pg_db_setting()` function.
 
@@ -413,7 +468,7 @@ end;
 $procedure$
 ```
 
-#### Procedure: `test__pg_safer_settings_table()`
+#### Procedure: `test__pg_safer_settings_table ()`
 
 Procedure-local settings:
 

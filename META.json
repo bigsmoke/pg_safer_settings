@@ -1,0 +1,58 @@
+{
+    "name": "pg_safer_settings",
+    "tags": [
+        "configuration",
+        "function",
+        "functions",
+        "plpgsql",
+        "settings",
+        "trigger"
+    ],
+    "license": "gpl_3",
+    "prereqs": {
+        "test": {
+            "requires": {
+                "pgtap": 0
+            }
+        },
+        "develop": {
+            "recommends": {
+                "pg_readme": 0
+            }
+        },
+        "runtime": {
+            "requires": {
+                "pg_utility_trigger_functions": 0
+            }
+        }
+    },
+    "version": "0.6.1",
+    "abstract": "A handful of functions and mechanisms to make dealing with settings in Postgres a bit … safer.",
+    "provides": {
+        "pg_safer_settings": {
+            "file": "pg_safer_settings--0.6.0.sql",
+            "docfile": "README.md",
+            "version": "0.6.1"
+        }
+    },
+    "meta-spec": {
+        "url": "https://pgxn.org/spec/",
+        "version": "1.0.0"
+    },
+    "resources": {
+        "homepage": "https://blog.bigsmoke.us/tag/pg_safer_settings",
+        "bugtracker": {
+            "web": "https://github.com/bigsmoke/pg_safer_settings/issues"
+        },
+        "repository": {
+            "url": "https://github.com/bigsmoke/pg_safer_settings.git",
+            "web": "https://github.com/bigsmoke/pg_safer_settings",
+            "type": "git"
+        }
+    },
+    "maintainer": [
+        "Rowan Rodrik van der Molen <rowan@bigsmoke.us>"
+    ],
+    "description": "The pg_safer_settings extension bundles a handful of functions and mechanisms to make dealing with settings in Postgres a bit … safer.",
+    "generated_by": "`select pg_safer_settings_meta_pgxn()`"
+}

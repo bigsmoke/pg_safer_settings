@@ -223,7 +223,7 @@ $markdown$;
 
 do $$
 begin
-    if to_regproc('pg_installed_extension_version(name)') is null then
+    if to_regprocedure('pg_installed_extension_version(name)') is null then
         create function pg_installed_extension_version(name)
             returns text
             returns null on null input
@@ -243,13 +243,19 @@ begin
         comment
             on function pg_installed_extension_version(name)
             is $markdown$
-This function belongs to the `pg_safer_settings` extensions, but could have
-belonged to any other extension, if it had been defined _before_ `CREATE
-EXTENSION pg_safer_settings` was run.
+This function belongs to the `pg_safer_settings` extension.  But, because of possible collisions with the
+same-named function in other extensions by the same originator, it will be dropped (if we're found to
+indeed own it) in the 0.6.0 → 0.6.1 update script.
 $markdown$;
 
+        -- Previously, in this version (0.6.0), I disowned `pg_installed_extension_version()`, but since
+        -- (in v. 0.6.1) I decided to use extension-specific functions instead (in those extension where
+        -- I really need it), let's not do that, so that, for fresh installations, we don't get a dangling
+        -- function that we dare not DROP because we're not sure it is ours.
+        /*
         alter extension pg_safer_settings
             drop function pg_installed_extension_version(name);
+        */
     end if;
 end;
 $$;
