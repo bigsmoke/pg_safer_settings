@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.6.1
-pg_readme_generated_at: 2023-01-07 18:00:18.493472+00
-pg_readme_version: 0.3.8
+pg_extension_version: 0.7.0
+pg_readme_generated_at: 2023-02-04 18:27:07.190316+00
+pg_readme_version: 0.5.6
 ---
 
 # The `pg_safer_settings` PostgreSQL extension
@@ -214,7 +214,7 @@ Function return type: `text`
 
 Function attributes: `STABLE`
 
-#### Function: `pg_safer_settings_meta_pgxn ()`
+#### Function: `pg_safer_settings_meta_pgxn()`
 
 Returns the JSON meta data that has to go into the `META.json` file needed for
 [PGXN—PostgreSQL Extension Network](https://pgxn.org/) packages.
@@ -230,7 +230,7 @@ Function return type: `jsonb`
 
 Function attributes: `STABLE`
 
-#### Function: `pg_safer_settings_readme ()`
+#### Function: `pg_safer_settings_readme()`
 
 This function utilizes the `pg_readme` extension to generate a thorough README
 for this extension, based on the `pg_catalog` and the `COMMENT` objects found
@@ -244,7 +244,7 @@ Function-local settings:
   *  `SET pg_readme.include_view_definitions TO true`
   *  `SET pg_readme.include_routine_definitions_like TO {test__%}`
 
-#### Function: `pg_safer_settings_table__col_must_mirror_current_setting ()`
+#### Function: `pg_safer_settings_table__col_must_mirror_current_setting()`
 
 If you want to forbid changing a configuration table column value to something
 that is not in sync with the current value of the given setting, use this
@@ -268,7 +268,7 @@ Function-local settings:
 
   *  `SET search_path TO ext, ext, pg_temp`
 
-#### Function: `pg_safer_settings_table__col_must_mirror_db_role_setting ()`
+#### Function: `pg_safer_settings_table__col_must_mirror_db_role_setting()`
 
 If you want to forbid changing a configuration table column value to something
 that is not in sync with the given setting (for the optionally given `ROLE`)
@@ -320,7 +320,7 @@ Function-local settings:
   *  `SET search_path TO ext, ext, pg_temp`
   *  `SET pg_readme.include_this_routine_definition TO true`
 
-```
+```sql
 CREATE OR REPLACE FUNCTION ext.pg_safer_settings_table_columns("table_schema$" name, "table_name$" name)
  RETURNS SETOF information_schema.columns
  LANGUAGE sql
@@ -377,7 +377,7 @@ BEGIN ATOMIC
 END
 ```
 
-#### Function: `pg_safer_settings_table__create_or_replace_getters ()`
+#### Function: `pg_safer_settings_table__create_or_replace_getters()`
 
 This trigger function automatically `CREATE OR REPLACE`s, for each
 configuration column in the table that it is attached to: an `IMMUTABLE`
@@ -389,7 +389,7 @@ Function-local settings:
 
   *  `SET search_path TO ext, ext, pg_temp`
 
-#### Function: `pg_safer_settings_table__mirror_col_to_db_role_setting ()`
+#### Function: `pg_safer_settings_table__mirror_col_to_db_role_setting()`
 
 If, for some reason, you find it useful to keep a configuration column value
 synced to a database/role-level setting, this trigger function has your back.
@@ -404,7 +404,7 @@ Function-local settings:
 
   *  `SET search_path TO ext, ext, pg_temp`
 
-#### Function: `pg_safer_settings_table__register ()`
+#### Function: `pg_safer_settings_table__register()`
 
 This trigger function creates and maintains the safer settings tables that are
 registered with it.  To get this trigger
@@ -415,7 +415,7 @@ Function-local settings:
 
   *  `SET search_path TO ext, ext, pg_temp`
 
-#### Function: `pg_safer_settings_version ()`
+#### Function: `pg_safer_settings_version()`
 
 Returns the currently (being) installed version of the `pg_safer_settings` extension.
 
@@ -423,7 +423,7 @@ Function return type: `text`
 
 Function attributes: `STABLE`, `LEAKPROOF`, `PARALLEL SAFE`
 
-#### Procedure: `test__pg_db_setting ()`
+#### Procedure: `test__pg_db_setting()`
 
 This routine tests the `pg_db_setting()` function.
 
@@ -438,7 +438,7 @@ Procedure-local settings:
   *  `SET plpgsql.check_asserts TO true`
   *  `SET pg_readme.include_this_routine_definition TO true`
 
-```
+```sql
 CREATE OR REPLACE PROCEDURE ext.test__pg_db_setting()
  LANGUAGE plpgsql
  SET search_path TO 'ext', 'ext', 'pg_temp'
@@ -468,14 +468,14 @@ end;
 $procedure$
 ```
 
-#### Procedure: `test__pg_safer_settings_table ()`
+#### Procedure: `test__pg_safer_settings_table()`
 
 Procedure-local settings:
 
   *  `SET search_path TO ext, ext, pg_temp`
   *  `SET pg_readme.include_this_routine_definition TO true`
 
-```
+```sql
 CREATE OR REPLACE PROCEDURE ext.test__pg_safer_settings_table()
  LANGUAGE plpgsql
  SET search_path TO 'ext', 'ext', 'pg_temp'
@@ -545,4 +545,4 @@ $procedure$
 
 ## Colophon
 
-This `README.md` for the `pg_safer_settings` `extension` was automatically generated using the [`pg_readme`](https://github.com/bigsmoke/pg_readme) PostgreSQL extension.
+This `README.md` for the `pg_safer_settings` extension was automatically generated using the [`pg_readme`](https://github.com/bigsmoke/pg_readme) PostgreSQL extension.

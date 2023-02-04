@@ -8,7 +8,7 @@
         "settings",
         "trigger"
     ],
-    "license": "gpl_3",
+    "license": "postgresql",
     "prereqs": {
         "test": {
             "requires": {
@@ -26,13 +26,13 @@
             }
         }
     },
-    "version": "0.6.1",
+    "version": "0.7.0",
     "abstract": "A handful of functions and mechanisms to make dealing with settings in Postgres a bit … safer.",
     "provides": {
         "pg_safer_settings": {
             "file": "pg_safer_settings--0.6.0.sql",
             "docfile": "README.md",
-            "version": "0.6.1"
+            "version": "0.7.0"
         }
     },
     "meta-spec": {
