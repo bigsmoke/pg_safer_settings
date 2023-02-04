@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.7.0
-pg_readme_generated_at: 2023-02-04 18:27:07.190316+00
+pg_extension_version: 0.8.0
+pg_readme_generated_at: 2023-02-04 20:36:37.720175+00
 pg_readme_version: 0.5.6
 ---
 
@@ -379,9 +379,21 @@ END
 
 #### Function: `pg_safer_settings_table__create_or_replace_getters()`
 
-This trigger function automatically `CREATE OR REPLACE`s, for each
-configuration column in the table that it is attached to: an `IMMUTABLE`
-function that returns the most up-to-date value for that column.
+This trigger function automatically `CREATE OR REPLACE`s, for each configuration column in the table that it is attached to: a function that returns the current value for that column.
+
+The created function will have the same name as the column it wraps, prefixed
+with the `setting_getter_prefix` from the
+[`pg_safer_settings_table`](#table-pg_safer_settings_table).
+
+Normally, the created function will be `IMMUTABLE` and return a hard-coded copy
+of the lastest configuration value, except if the column name it reflects
+starts with the `secret_setting_prefix` from the
+[`pg_safer_settings_table`](#table-pg_safer_settings_table)—then the function
+will be a `STABLE` function that, upon invocation, retrieves the value from the
+configuration table.
+
+`SELECT` privileges on the setting columns are translated into `EXECUTE`
+permissions on the wrapper functions.
 
 Function return type: `trigger`
 

@@ -3,6 +3,7 @@
 
 --------------------------------------------------------------------------------------------------------------
 
+-- Change license from AGPL 3.0 to the PostgreSQL license.
 create or replace function pg_safer_settings_meta_pgxn()
     returns jsonb
     stable
