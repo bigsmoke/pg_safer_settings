@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.8.0
-pg_readme_generated_at: 2023-02-04 20:36:37.720175+00
+pg_extension_version: 0.8.1
+pg_readme_generated_at: 2023-02-23 13:32:37.374886+00
 pg_readme_version: 0.5.6
 ---
 
@@ -403,12 +403,11 @@ Function-local settings:
 
 #### Function: `pg_safer_settings_table__mirror_col_to_db_role_setting()`
 
-If, for some reason, you find it useful to keep a configuration column value
-synced to a database/role-level setting, this trigger function has your back.
+If, for some reason, you find it useful to keep a configuration column value synced to a database/role-level setting, this trigger function has your back.
 
 For the opposite requirement—to enforce equality of a configuration column
 value to a database (role) setting—, see the
-`pg_safer_settings_table__mirror_col_to_db_role_setting()` trigger function.
+`pg_safer_settings_table__col_must_mirror_db_role_setting()` trigger function.
 
 Function return type: `trigger`
 
