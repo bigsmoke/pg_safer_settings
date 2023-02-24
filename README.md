@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.8.1
-pg_readme_generated_at: 2023-02-23 13:32:37.374886+00
+pg_extension_version: 0.8.2
+pg_readme_generated_at: 2023-02-24 18:50:23.522379+00
 pg_readme_version: 0.5.6
 ---
 
@@ -417,8 +417,7 @@ Function-local settings:
 
 #### Function: `pg_safer_settings_table__register()`
 
-This trigger function creates and maintains the safer settings tables that are
-registered with it.  To get this trigger
+This trigger function creates and maintains the safer settings tables that are registered with it.
 
 Function return type: `trigger`
 
@@ -433,6 +432,65 @@ Returns the currently (being) installed version of the `pg_safer_settings` exten
 Function return type: `text`
 
 Function attributes: `STABLE`, `LEAKPROOF`, `PARALLEL SAFE`
+
+#### Procedure: `test_dump_restore__pg_safer_settings_table (text)`
+
+Procedure arguments:
+
+| Arg. # | Arg. mode  | Argument name                                                     | Argument type                                                        | Default expression  |
+| ------ | ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
+|   `$1` |       `IN` | `test_stage$`                                                     | `text`                                                               |  |
+
+Procedure-local settings:
+
+  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET plpgsql.check_asserts TO true`
+  *  `SET pg_readme.include_this_routine_definition TO true`
+
+```sql
+CREATE OR REPLACE PROCEDURE ext.test_dump_restore__pg_safer_settings_table(IN "test_stage$" text)
+ LANGUAGE plpgsql
+ SET search_path TO 'ext', 'ext', 'pg_temp'
+ SET "plpgsql.check_asserts" TO 'true'
+ SET "pg_readme.include_this_routine_definition" TO 'true'
+AS $procedure$
+declare
+    _cfg_record record;
+begin
+    assert test_stage$ in ('pre-dump', 'post-restore');
+
+    if test_stage$ = 'pre-dump' then
+        insert into pg_safer_settings_table (table_name) values ('test__cfg');
+        alter table test__cfg
+            add boolean_test_setting bool
+                not null
+                default false
+            ,add secret_test_setting text
+        ;
+        update test__cfg
+            set secret_test_setting = 'Th1s1ss3cr3t'
+        ;
+
+    elsif test_stage$ = 'post-restore' then
+        select * into strict _cfg_record from test__cfg;
+
+        assert _cfg_record.boolean_test_setting = false;
+        assert current_boolean_test_setting() = false;
+
+        assert _cfg_record.secret_test_setting = 'Th1s1ss3cr3t';
+        assert current_secret_test_setting() = 'Th1s1ss3cr3t';
+
+        assert to_regprocedure('current_boolean_test_setting()') is not null;
+        assert to_regprocedure('current_secret_test_setting()') is not null;
+
+        delete from pg_safer_settings_table where table_name = 'test__cfg';
+
+        assert to_regprocedure('current_boolean_test_setting()') is null;
+        assert to_regprocedure('current_secret_test_setting()') is null;
+    end if;
+end;
+$procedure$
+```
 
 #### Procedure: `test__pg_db_setting()`
 
