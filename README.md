@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.8.2
-pg_readme_generated_at: 2023-02-24 18:50:23.522379+00
+pg_extension_version: 0.8.3
+pg_readme_generated_at: 2023-02-28 10:23:50.673458+00
 pg_readme_version: 0.5.6
 ---
 
