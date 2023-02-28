@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.8.3
-pg_readme_generated_at: 2023-02-28 10:23:50.673458+00
+pg_extension_version: 0.8.4
+pg_readme_generated_at: 2023-02-28 14:36:16.979824+00
 pg_readme_version: 0.5.6
 ---
 
@@ -181,9 +181,7 @@ The `pg_safer_settings_table` table has 6 attributes:
 
 #### Function: `pg_db_setting (text, regrole)`
 
-`pg_db_setting()` allows you to look up a setting value as `SET` for a
-`DATABASE` or `ROLE`, ignoring the local (transaction or session) value for
-that setting.
+`pg_db_setting()` allows you to look up a setting value as `SET` for a `DATABASE` or `ROLE`, ignoring the local (transaction or session) value for that setting.
 
 Example:
 
