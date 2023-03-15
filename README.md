@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.8.4
-pg_readme_generated_at: 2023-02-28 14:36:16.979824+00
-pg_readme_version: 0.5.6
+pg_extension_version: 0.8.5
+pg_readme_generated_at: 2023-03-15 22:14:56.091477+00
+pg_readme_version: 0.6.0
 ---
 
 # The `pg_safer_settings` PostgreSQL extension
@@ -128,7 +128,7 @@ INSERT INTO ext.pg_safer_settings_table DEFAULT VALUES
     RETURNING *;
 ```
 
-The `pg_safer_settings_table` table has 6 attributes:
+The `pg_safer_settings_table` table has 8 attributes:
 
 1. `pg_safer_settings_table.table_regclass` `regclass`
 
@@ -176,6 +176,19 @@ The `pg_safer_settings_table` table has 6 attributes:
 
    - `NOT NULL`
    - `DEFAULT pg_safer_settings_version()`
+
+7. `pg_safer_settings_table.owning_extension_name` `name`
+
+   The name of the extension that registered a specific settings table.
+
+   Make sure that this column contains the name of your extension if your extension inserts a `pg_safer_settings_table` through its set up scripts.
+
+8. `pg_safer_settings_table.owning_extension_version` `text`
+
+   The version of the extension that registered a specific settings table.
+
+   This version is set automatically by the `pg_safer_settings_table__register()`
+   trigger function.
 
 ### Routines
 
@@ -371,7 +384,7 @@ BEGIN ATOMIC
      columns.generation_expression,
      columns.is_updatable
     FROM information_schema.columns
-   WHERE (((columns.table_schema)::name = pg_safer_settings_table_columns."table_schema$") AND ((columns.table_name)::name = pg_safer_settings_table_columns."table_name$") AND ((columns.column_name)::name <> ANY (ARRAY['is_singleton'::text, 'inserted_at'::text, 'updated_at'::text])));
+   WHERE (((columns.table_schema)::name = pg_safer_settings_table_columns."table_schema$") AND ((columns.table_name)::name = pg_safer_settings_table_columns."table_name$") AND (NOT ((columns.column_name)::name = ANY (ARRAY['is_singleton'::text, 'inserted_at'::text, 'updated_at'::text]))));
 END
 ```
 
@@ -416,6 +429,18 @@ Function-local settings:
 #### Function: `pg_safer_settings_table__register()`
 
 This trigger function creates and maintains the safer settings tables that are registered with it.
+
+Function return type: `trigger`
+
+Function-local settings:
+
+  *  `SET search_path TO ext, ext, pg_temp`
+
+#### Function: `pg_safer_settings_table__update_on_copy()`
+
+`UPDATE` instead of `INSERT` when triggered from a `COPY FROM STDIN` statement.
+
+Without this trigger, when another extension sets up a `pg_safer_settings_table` from one of its setup scripts
 
 Function return type: `trigger`
 
@@ -469,6 +494,10 @@ begin
             set secret_test_setting = 'Th1s1ss3cr3t'
         ;
 
+        create extension pg_safer_settings_table_dependent_extension;
+        assert current_subext_number_setting() = 4;
+        update subextension_cfg set subext_number_setting = 5;
+
     elsif test_stage$ = 'post-restore' then
         select * into strict _cfg_record from test__cfg;
 
@@ -485,6 +514,10 @@ begin
 
         assert to_regprocedure('current_boolean_test_setting()') is null;
         assert to_regprocedure('current_secret_test_setting()') is null;
+
+        assert current_subext_number_setting() = 5,
+            'The configaration value set _after_ `CREATE EXTENSION` should have been preserved.';
+        assert current_subext_text_setting() = 'quite the thing';
     end if;
 end;
 $procedure$

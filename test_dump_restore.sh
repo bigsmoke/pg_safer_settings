@@ -78,27 +78,32 @@ trap cleanup exit
 
 tmp_dir=$(mktemp --directory)
 dump_file="$tmp_dir/dump"
+roles_dump_file="$tmp_dir/global.dump"
 
 export PGDATA="$tmp_dir/data"
 export PGHOST="$tmp_dir"
 export PGDATABASE="test_dump_restore"
 export PGUSER="wortel"
+export PGVERSION="15"
 
-"$PG_BIN_DIR/initdb" \
-        --auth trust \
-        --username "$PGUSER" \
-        --pwfile <(echo ondergronds) >/dev/null 2>&1 || exit 4
+start_pg_cluster() {
+    "$PG_BIN_DIR/initdb" \
+            --auth trust \
+            --username "$PGUSER" \
+            --pwfile <(echo ondergronds) >/dev/null 2>&1 || exit 4
 
-"$PG_BIN_DIR/postgres" -k "$PGHOST" -h "" 2>/dev/null &
-pg_pid=$!
+    "$PG_BIN_DIR/postgres" -k "$PGHOST" -h "" 2>/dev/null &
+    pg_pid=$!
 
-# Wait for the daemon to come online.
-while true; do
-    if psql -c "select true" postgres >/dev/null; then
-        break
-    fi
-    sleep 0.1
-done
+    # Wait for the daemon to come online.
+    while true; do
+        if psql -c "select true" postgres >/dev/null; then
+            break
+        fi
+        sleep 0.1
+    done
+}
+start_pg_cluster
 
 mkdir -p $(dirname "$out_file")
 
@@ -112,18 +117,27 @@ $PG_BIN_DIR/psql \
     -v "test_stage=pre-dump" \
     >> "$out_file" 2>&1 || exit 5
 
-echo "-- pg_dumpall --globals-only"
-$PG_BIN_DIR/pg_dumpall --globals-only > "$dump_file" || exit 5
+echo "-- pg_dumpall --roles-only" >> "$out_file"
+$PG_BIN_DIR/pg_dumpall --roles-only --file "$roles_dump_file" >> "$out_file" 2>&1 || exit 5
 
 echo "-- pg_dump --format=custom --file <dump_file>" >> "$out_file"
-$PG_BIN_DIR/pg_dump --format=custom --file "$dump_file" >> "$out_file" || exit 5
+$PG_BIN_DIR/pg_dump --format=custom --file "$dump_file" >> "$out_file" 2>&1 || exit 5
 
+echo "-- kill -9 <pg_pid>" >> "$out_file"
+kill "$pg_pid"
+echo "-- rm -r \$PGDATA" >> "$out_file"
+rm -r "$PGDATA"
 
-echo "-- dropdb"
-$PG_BIN_DIR/dropdb "$PGDATABASE" || exit 5
+start_pg_cluster
 
-echo "-- pg_restore --create --dbname postgres <dump_file>"
-$PG_BIN_DIR/pg_restore --create --dbname postgres "$dump_file" || exit 5
+echo "-- psql postgres -c '\\set ON_ERROR_STOP' -f <roles_dump_file>" >> "$out_file"
+$PG_BIN_DIR/psql postgres -c '\set ON_ERROR_STOP' \
+    -f <(grep -v "CREATE ROLE $PGUSER" "$roles_dump_file") \
+    >> "$out_file" 2>&1 \
+    || exit 5
+
+echo "-- pg_restore --create --dbname postgres <dump_file>" >> "$out_file"
+$PG_BIN_DIR/pg_restore --create --dbname postgres "$dump_file" >> "$out_file" 2>&1 || exit 5
 
 echo "-- psql -f '$psql_script_file' -v 'extension_name=$extension_name' -v 'test_stage=post-restore'" >> "$out_file"
 $PG_BIN_DIR/psql \

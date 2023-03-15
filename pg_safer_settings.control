@@ -1,3 +1,3 @@
-default_version = '0.8.4'
+default_version = '0.8.5'
 relocatable = true
 requires = 'pg_utility_trigger_functions'
