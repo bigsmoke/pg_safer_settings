@@ -1,6 +1,7 @@
 EXTENSION = pg_safer_settings
 
 SUBEXTENSION = pg_safer_settings_table_dependent_extension
+SUBSUBEXTENSION = pg_safer_settings_table_dependent_subextension
 
 DISTVERSION = $(shell sed -n -E "/default_version/ s/^.*'(.*)'.*$$/\1/p" $(EXTENSION).control)
 
@@ -16,6 +17,10 @@ install: install_subextension
 install_subextension:
 	$(MAKE) -C $(SUBEXTENSION) install
 
+install: install_subsubextension
+install_subsubextension:
+	$(MAKE) -C $(SUBSUBEXTENSION) install
+
 README.md: sql/README.sql install
 	psql --quiet postgres < $< > $@
 
@@ -25,9 +30,11 @@ META.json: sql/META.sql install
 dist: META.json README.md
 	git archive --format zip --prefix=$(EXTENSION)-$(DISTVERSION)/ -o $(EXTENSION)-$(DISTVERSION).zip HEAD
 
-test_dump_restore: $(CURDIR)/test_dump_restore.sh sql/test_dump_restore.sql
+test_dump_restore: TEST_DUMP_RESTORE_OPTIONS?=
+test_dump_restore: $(CURDIR)/bin/test_dump_restore.sh sql/test_dump_restore.sql
 	PGDATABASE=test_dump_restore \
 		$< --extension $(EXTENSION) \
+		$(TEST_DUMP_RESTORE_OPTIONS) \
 		--psql-script-file sql/test_dump_restore.sql \
 		--out-file results/test_dump_restore.out \
 		--expected-out-file expected/test_dump_restore.out

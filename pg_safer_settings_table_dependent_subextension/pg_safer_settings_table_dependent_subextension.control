@@ -1,0 +1,4 @@
+default_version = 'monover'
+superuser = false
+relocatable = true
+requires = 'pg_safer_settings_table_dependent_extension'

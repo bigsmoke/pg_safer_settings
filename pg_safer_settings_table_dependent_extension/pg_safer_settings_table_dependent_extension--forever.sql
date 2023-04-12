@@ -15,10 +15,13 @@ values (
 
 alter table subextension_cfg
     add column subext_number_setting int
-    ,add column subext_text_setting text;
+    ,add column subext_text_setting text
+    ,add column subext_bool_setting bool;
+
 
 update subextension_cfg
     set subext_number_setting = 4
-        ,subext_text_setting = 'quite the thing';
+        ,subext_text_setting = 'quite the thing'
+        ,subext_bool_setting = true;
 
 --------------------------------------------------------------------------------------------------------------

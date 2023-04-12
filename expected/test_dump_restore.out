@@ -1,7 +1,7 @@
 -- createdb
 -- psql -f 'sql/test_dump_restore.sql' -v 'extension_name=pg_safer_settings' -v 'test_stage=pre-dump'
-psql:sql/test_dump_restore.sql:21: NOTICE:  installing required extension "pg_utility_trigger_functions"
-psql:sql/test_dump_restore.sql:21: NOTICE:  installing required extension "hstore"
+psql:sql/test_dump_restore.sql:50: NOTICE:  installing required extension "pg_utility_trigger_functions"
+psql:sql/test_dump_restore.sql:50: NOTICE:  installing required extension "hstore"
 CREATE EXTENSION
 CALL
 -- pg_dumpall --roles-only
@@ -13,6 +13,9 @@ SET
 SET
 SET
 ALTER ROLE
+-- createdb 'test_dump_restore_oid_noise'
+-- psql -f 'sql/test_dump_restore.sql' -v 'extension_name=pg_safer_settings' -v 'test_stage=pre-restore'
+DO
 -- pg_restore --create --dbname postgres <dump_file>
 -- psql -f 'sql/test_dump_restore.sql' -v 'extension_name=pg_safer_settings' -v 'test_stage=post-restore'
 CALL
