@@ -80,7 +80,7 @@ $$;
 --------------------------------------------------------------------------------------------------------------
 
 -- DRY.
--- Make
+-- Deal well with compatible with multiple levels of dependent extensions.
 create or replace function pg_safer_settings_table__create_or_replace_getters()
     returns trigger
     set search_path from current

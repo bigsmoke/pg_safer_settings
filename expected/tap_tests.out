@@ -1,7 +1,0 @@
-begin;
-create extension pg_safer_settings cascade;
-NOTICE:  installing required extension "pg_utility_trigger_functions"
-NOTICE:  installing required extension "hstore"
-call test__pg_db_setting();
-call test__pg_safer_settings_table();
-rollback;

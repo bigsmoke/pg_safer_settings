@@ -1,7 +1,7 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.8.7
-pg_readme_generated_at: 2023-04-12 15:39:31.306638+01
+pg_extension_version: 0.8.8
+pg_readme_generated_at: 2023-05-01 11:59:24.090042+01
 pg_readme_version: 0.6.1
 ---
 
@@ -110,9 +110,7 @@ There are 1 tables that directly belong to the `pg_safer_settings` extension.
 
 #### Table: `pg_safer_settings_table`
 
-Insert a row in `pg_safer_settings_table` to have its triggers automatically
-create _your_ configuration table, plus the requisite triggers that create and
-replace the `current_<cfg_column>()` functions as needed.
+Insert a row in `pg_safer_settings_table` to have its triggers automatically create _your_ configuration table, plus the requisite triggers that create and replace the `current_<cfg_column>()` functions as needed.
 
 `pg_safer_settings_table` has default for all its columns.  In the simplest
 form, you can do a default-only insert:
@@ -147,8 +145,7 @@ The `pg_safer_settings_table` table has 8 attributes:
 
 4. `pg_safer_settings_table.setting_getter_prefix` `name`
 
-   The automatically created/replaced setting getter functions will be named by
-   prepending `setting_getter_prefix` to the column name for that setting.
+   The automatically created/replaced setting getter functions will be named by prepending `setting_getter_prefix` to the column name for that setting.
 
    The default value (`'current_'`) of the `setting_getter_prefix` follows the
    naming of Postgres its own `current_setting()` function name.
@@ -158,11 +155,7 @@ The `pg_safer_settings_table` table has 8 attributes:
 
 5. `pg_safer_settings_table.secret_setting_prefix` `name`
 
-   When a setting's column name starts with the `secret_setting_prefix`, its
-   automatically generated getter function will be a `STABLE` function that, when
-   called, looks up the column value in the table rather than the default
-   `IMMUTABLE` function (with the configuration value cached in the `RETURN`
-   clause) that would otherwise have been created.
+   When a setting's column name starts with the `secret_setting_prefix`, its automatically generated getter function will be a `STABLE` function that, when called, looks up the column value in the table rather than the default `IMMUTABLE` function (with the configuration value cached in the `RETURN` clause) that would otherwise have been created.
 
    The reason for this is that the schema for functions can be retrieved by
    everyone, and thus any role would be able to read the secret value even if that
@@ -227,8 +220,7 @@ Function attributes: `STABLE`
 
 #### Function: `pg_safer_settings_meta_pgxn()`
 
-Returns the JSON meta data that has to go into the `META.json` file needed for
-[PGXN—PostgreSQL Extension Network](https://pgxn.org/) packages.
+Returns the JSON meta data that has to go into the `META.json` file needed for PGXN—PostgreSQL Extension Network—packages.
 
 The `Makefile` includes a recipe to allow the developer to: `make META.json` to
 refresh the meta file with the function's current output, including the
@@ -243,9 +235,7 @@ Function attributes: `STABLE`
 
 #### Function: `pg_safer_settings_readme()`
 
-This function utilizes the `pg_readme` extension to generate a thorough README
-for this extension, based on the `pg_catalog` and the `COMMENT` objects found
-therein.
+This function utilizes the `pg_readme` extension to generate a thorough README for this extension, based on the `pg_catalog` and the `COMMENT` objects found therein.
 
 Function return type: `text`
 
@@ -257,9 +247,7 @@ Function-local settings:
 
 #### Function: `pg_safer_settings_table__col_must_mirror_current_setting()`
 
-If you want to forbid changing a configuration table column value to something
-that is not in sync with the current value of the given setting, use this
-trigger function.
+If you want to forbid changing a configuration table column value to something that is not in sync with the current value of the given setting, use this trigger function.
 
 Use it as a constraint trigger:
 
@@ -281,9 +269,7 @@ Function-local settings:
 
 #### Function: `pg_safer_settings_table__col_must_mirror_db_role_setting()`
 
-If you want to forbid changing a configuration table column value to something
-that is not in sync with the given setting (for the optionally given `ROLE`)
-`SET` on the `DATABASE` level, this trigger function is your friend.
+If you want to forbid changing a configuration table column value to something that is not in sync with the given setting (for the optionally given `ROLE`) `SET` on the `DATABASE` level, this trigger function is your friend.
 
 Use it as a constraint trigger:
 
@@ -446,7 +432,7 @@ crash, because it would try to `INSERT` _twice_:
 
 1. as a result of the `INSERT AFTER` trigger on `pg_safer_settings_table`, _and_
 2. as a result of the contents of the created settings table always being
-   included in the `pg_dump`. Because you want to remember your settings, right?
+   included in the `pg_dump`.  Because you want to remember your settings, right?
 
 Function return type: `trigger`
 
