@@ -2,16 +2,17 @@
 NOTICE:  CREATE EXTENSION pg_safer_settings WITH VERSION '0.6.0' CASCADE
 NOTICE:  installing required extension "pg_utility_trigger_functions"
 NOTICE:  installing required extension "hstore"
-NOTICE:  ALTER EXTENSION pg_safer_settings UPDATE TO '0.8.9'
+NOTICE:  ALTER EXTENSION pg_safer_settings UPDATE TO '0.8.10'
 NOTICE:  CALL test__pg_db_setting()
 NOTICE:  CALL test__pg_safer_settings_table()
 NOTICE:  DROP EXTENSION pg_safer_settings CASCADE
 NOTICE:  CREATE EXTENSION pg_safer_settings WITH VERSION '0.8.9' CASCADE
+NOTICE:  ALTER EXTENSION pg_safer_settings UPDATE TO '0.8.10'
 NOTICE:  CALL test__pg_db_setting()
 NOTICE:  CALL test__pg_safer_settings_table()
 NOTICE:  DROP EXTENSION pg_safer_settings CASCADE
 NOTICE:  CREATE EXTENSION pg_safer_settings WITH VERSION '0.8.8' CASCADE
-NOTICE:  ALTER EXTENSION pg_safer_settings UPDATE TO '0.8.9'
+NOTICE:  ALTER EXTENSION pg_safer_settings UPDATE TO '0.8.10'
 NOTICE:  CALL test__pg_db_setting()
 NOTICE:  CALL test__pg_safer_settings_table()
 NOTICE:  DROP EXTENSION pg_safer_settings CASCADE

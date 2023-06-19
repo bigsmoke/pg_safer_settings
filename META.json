@@ -26,13 +26,13 @@
             }
         }
     },
-    "version": "0.8.9",
+    "version": "0.8.10",
     "abstract": "A handful of functions and mechanisms to make dealing with settings in Postgres a bit … safer.",
     "provides": {
         "pg_safer_settings": {
-            "file": "pg_safer_settings--0.8.9.sql",
+            "file": "pg_safer_settings--0.8.10.sql",
             "docfile": "README.md",
-            "version": "0.8.9"
+            "version": "0.8.10"
         }
     },
     "meta-spec": {
