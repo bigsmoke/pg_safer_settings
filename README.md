@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.8.10
-pg_readme_generated_at: 2023-06-19 10:49:02.953641+01
-pg_readme_version: 0.6.4
+pg_extension_version: 0.8.11
+pg_readme_generated_at: 2023-11-28 17:51:48.243737+00
+pg_readme_version: 0.6.5
 ---
 
 # The `pg_safer_settings` PostgreSQL extension

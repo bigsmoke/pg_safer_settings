@@ -215,7 +215,7 @@ create function pg_safer_settings_meta_pgxn()
         ,'provides'
         ,('{
             "pg_safer_settings": {
-                "file": "pg_safer_settings--0.8.10.sql",
+                "file": "pg_safer_settings--0.8.11.sql",
                 "version": "' || pg_safer_settings_version() || '",
                 "docfile": "README.md"
             }
