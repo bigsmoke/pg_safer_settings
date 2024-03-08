@@ -16,8 +16,9 @@ values (
 alter table subextension_cfg
     add column subext_number_setting int
     ,add column subext_text_setting text
-    ,add column subext_bool_setting bool;
-
+    ,add column subext_bool_setting bool
+    ,add column subext_generated_setting text
+        generated always as (case when subext_bool_setting then 'yes' else 'no' end) stored;
 
 update subextension_cfg
     set subext_number_setting = 4

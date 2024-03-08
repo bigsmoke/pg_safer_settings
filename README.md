@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.8.11
-pg_readme_generated_at: 2023-11-28 17:51:48.243737+00
-pg_readme_version: 0.6.5
+pg_extension_version: 0.8.12
+pg_readme_generated_at: 2024-03-08 16:47:30.417977+00
+pg_readme_version: 0.6.6
 ---
 
 # The `pg_safer_settings` PostgreSQL extension
@@ -525,6 +525,9 @@ begin
             add boolean_test_setting bool
                 not null
                 default false
+            ,add generated_setting text
+                not null
+                generated always as (case when boolean_test_setting then 'yes' else 'no' end) stored
             ,add secret_test_setting text
         ;
         update test__cfg
@@ -533,6 +536,8 @@ begin
 
         create extension pg_safer_settings_table_dependent_extension;
         assert current_subext_number_setting() = 4;
+        assert current_subext_bool_setting();
+        assert current_subext_generated_setting() = 'yes';
         update subextension_cfg set subext_number_setting = 5;
         assert current_subext_number_setting() = 5;
 
@@ -544,21 +549,26 @@ begin
 
         assert _cfg_record.boolean_test_setting = false;
         assert current_boolean_test_setting() = false;
+        assert _cfg_record.generated_setting = 'no';
+        assert current_generated_setting() = 'no';
 
         assert _cfg_record.secret_test_setting = 'Th1s1ss3cr3t';
         assert current_secret_test_setting() = 'Th1s1ss3cr3t';
 
         assert to_regprocedure('current_boolean_test_setting()') is not null;
+        assert to_regprocedure('current_generated_setting()') is not null;
         assert to_regprocedure('current_secret_test_setting()') is not null;
 
         delete from pg_safer_settings_table where table_name = 'test__cfg';
 
         assert to_regprocedure('current_boolean_test_setting()') is null;
+        assert to_regprocedure('current_generated_setting()') is null;
         assert to_regprocedure('current_secret_test_setting()') is null;
 
         assert current_subext_number_setting() = 5,
             'The configaration value set _after_ `CREATE EXTENSION` should have been preserved.';
         assert current_subext_bool_setting() = true;
+        assert current_subext_generated_setting() = 'yes';
 
         assert current_subext_text_setting() = 'Set by subsubextension',
             'The configuration value set by the subsubextension should have been preserver.';
