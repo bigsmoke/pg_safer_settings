@@ -19,20 +19,15 @@
             "recommends": {
                 "pg_readme": 0
             }
-        },
-        "runtime": {
-            "requires": {
-                "pg_utility_trigger_functions": 0
-            }
         }
     },
-    "version": "0.8.12",
+    "version": "1.0.0",
     "abstract": "A handful of functions and mechanisms to make dealing with settings in Postgres a bit … safer.",
     "provides": {
         "pg_safer_settings": {
-            "file": "pg_safer_settings--0.8.12.sql",
+            "file": "pg_safer_settings--1.0.0.sql",
             "docfile": "README.md",
-            "version": "0.8.12"
+            "version": "1.0.0"
         }
     },
     "meta-spec": {

@@ -1,7 +1,10 @@
 #!/bin/bash
 
 SCRIPT_NAME=$(basename "$0")
-PG_BIN_DIR="$(pg_config --bindir)"
+if [[ -z "$PG_CONFIG" ]]; then
+    PG_CONFIG="$(pg_config --bindir)/pg_config"
+fi
+PG_BIN_DIR="$("$PG_CONFIG" --bindir)"
 
 usage() {
     cat <<EOF

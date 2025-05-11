@@ -1,9 +1,13 @@
 -- Complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
--- This comment was unfinished mid-sentence in the `*--0.8.4--0.8.5.sql` script.
+/**
+ * CHANGELOG.md:
+ * - The `comment on function pg_safer_settings_table__update_on_copy()` was
+ *   left unfinished mid-sentence in the `pg_safer_settings----0.8.4--0.8.5.sql`
+ *   upgrade script.  This is now remedied.
+ */
 comment on function pg_safer_settings_table__update_on_copy() is
 $md$`UPDATE` instead of `INSERT` when triggered from a `COPY FROM STDIN` statement.
 
@@ -16,9 +20,14 @@ crash, because it would try to `INSERT` _twice_:
    included in the `pg_dump`. Because you want to remember your settings, right?
 $md$;
 
---------------------------------------------------------------------------------------------------------------
 
--- Test what happens when an extension's configuration table is touched by another extension.
+/**
+ * CHANGELOG.md:
+ *
+ * - The `test_dump_restore__pg_safer_settings_table()` procedure now tests what
+ *   happens when an extension's configuration table is touched by another
+ *   extension.
+ */
 create or replace procedure test_dump_restore__pg_safer_settings_table(test_stage$ text)
     set search_path from current
     set plpgsql.check_asserts to true
@@ -77,10 +86,19 @@ begin
 end;
 $$;
 
---------------------------------------------------------------------------------------------------------------
 
--- DRY.
--- Deal well with compatible with multiple levels of dependent extensions.
+/**
+ * CHANGELOG.md:
+ *
+ * - The `pg_safer_settings_table__create_or_replace_getters()` trigger function
+ *   can now deal well with multiple levels of dependent extensions.  I.e., if,
+ *   for example, extension B changes a setting that belongs to extension A,
+ *   extension B will no longer accidentally end up as the owner of the newly
+ *   created getter function.
+ *
+ * - The `pg_safer_settings_table__create_or_replace_getters()` trigger function
+ *   was somewhat DRY'd in the process.
+ */
 create or replace function pg_safer_settings_table__create_or_replace_getters()
     returns trigger
     set search_path from current
@@ -259,5 +277,3 @@ $md$                    $sqlstr$;
     return NEW;
 end;
 $$;
-
---------------------------------------------------------------------------------------------------------------

@@ -1,10 +1,14 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
--- Put the synopsis on the first line, as a single line, to please PostgREST's
--- parsing for its OpenAPI docs.
+/**
+ * CHANGELOG.md:
+ *
+ * - The `comment on function pg_db_setting(text, regrole)` was changed to put
+ *   the entire synopsis paragraph, as a single line, on the first line of the
+ *   `comment`, to please PostgREST's parsing for its OpenAPI docs.
+ */
 comment on function pg_db_setting(text, regrole) is
 $markdown$`pg_db_setting()` allows you to look up a setting value as `SET` for a `DATABASE` or `ROLE`, ignoring the local (transaction or session) value for that setting.
 
@@ -26,5 +30,3 @@ SELECT pg_db_role_setting('app.settings.bla');  -- '1'
 SELECT pg_db_role_setting('app.settings.bla', current_user);  -- '2'
 ```
 $markdown$;
-
---------------------------------------------------------------------------------------------------------------

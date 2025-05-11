@@ -1,9 +1,14 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
--- Add CREATE COMMENT for getter functions.
+/**
+ * CHANGELOG.md:
+ *
+ * - Getter functions that are automatically created by the
+ *   `pg_safer_settings_table__create_or_replace_getters()` trigger function now
+ *   get an explanatory `COMMENT`.
+ */
 create or replace function pg_safer_settings_table__create_or_replace_getters()
     returns trigger
     set search_path from current
@@ -119,8 +124,14 @@ $md$                    $sqlstr$;
 end;
 $$;
 
--- Put the first paragraph entirely on the first line, to play nicer with everything that is _not_ pg_readme.
--- Explain more about what the trigger does.
+/**
+ * CHANGELOG.md:
+ *
+ * - `comment on function pg_safer_settings_table__create_or_replace_getters()`
+ *   was changed to have the first paragraph on a single line, to play nicer
+ *   with everything that is _not_ `pg_readme`.  Besides, the comment now also
+ *   better explains what the trigger function does.
+ */
 comment on function pg_safer_settings_table__create_or_replace_getters() is
 $markdown$This trigger function automatically `CREATE OR REPLACE`s, for each configuration column in the table that it is attached to: a function that returns the current value for that column.
 
@@ -138,5 +149,3 @@ configuration table.
 `SELECT` privileges on the setting columns are translated into `EXECUTE`
 permissions on the wrapper functions.
 $markdown$;
-
---------------------------------------------------------------------------------------------------------------

@@ -1,9 +1,15 @@
 -- Complain if script is sourced in `psql`, rather than via `CREATE EXTENSION`.
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
--- Ignore generated columns.
+/**
+ * CHANGELOG.md:
+ *
+ * - The `pg_safer_settings_table__update_on_copy()` trigger function now
+ *   ignores configuration columns that are `GENERATED ALWAYS AS (…) STORED`,
+ *   so that it doesn't accidentelly `UPDATE` columns which would produce
+ *   an error.
+ */
 create or replace function pg_safer_settings_table__update_on_copy()
     returns trigger
     set search_path from current
@@ -52,9 +58,13 @@ begin
 end;
 $$;
 
---------------------------------------------------------------------------------------------------------------
 
--- Test that generated columns are ignored on `UPDATE` on `COPY`.
+/**
+ * CHANGELOG.md:
+ *
+ * - Accordingly, the `test_dump_restore__pg_safer_settings_table()` procedure
+ *   now includes a `generated_setting` in its test configuration table.
+ */
 create or replace procedure test_dump_restore__pg_safer_settings_table(test_stage$ text)
     set search_path from current
     set plpgsql.check_asserts to true
@@ -122,5 +132,3 @@ begin
     end if;
 end;
 $$;
-
---------------------------------------------------------------------------------------------------------------

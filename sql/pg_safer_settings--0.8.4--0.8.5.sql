@@ -1,9 +1,63 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
--- Test what happens when working with a subextension that also adds a configuration table.
+/**
+ * CHANGELOG.md:
+ *
+ * - Accommodations were made to allow third-party extensions to keep their
+ *   settings in a `pg_safer_settings`-managed table, and thusly registed in the
+ *   `pg_safer_settings_table` registery:
+ *
+ *   + Two new columns were added to the `pg_safer_settings_table` registery
+ *     table:
+ *
+ *     1. `owning_extension_name`, and
+ *     2. `owning_extension_version`.
+ */
+alter table pg_safer_settings_table
+    add column owning_extension_name name
+    ,add column owning_extension_version text
+;
+
+comment on column pg_safer_settings_table.owning_extension_name is
+$md$The name of the extension that registered a specific settings table.
+
+Make sure that this column contains the name of your extension if your
+extension inserts a `pg_safer_settings_table` through its set up scripts.
+$md$;
+
+comment on column pg_safer_settings_table.owning_extension_version is
+$md$The version of the extension that registered a specific settings table.
+
+This version is set automatically by the `pg_safer_settings_table__register()`
+trigger function.
+$md$;
+
+
+/**
+ * CHANGELOG.md:
+ *
+ *   + All rows in the `pg_safer_settings_table` `WHERE owning_extension_name
+ *     IS NOT NULL` are now excluded from the dump, so that when dependent
+ *     extensions reregister/recreate their config tables during `CREATE
+ *     EXTENSION` during a `pg_restore`, that third-party extension's
+ *     installation/upgrade do not encounter the problem of the row already
+ *     existing.
+ */
+select pg_catalog.pg_extension_config_dump(
+    'pg_safer_settings_table'
+    ,'WHERE owning_extension_name IS NULL'
+);
+
+
+/**
+ * CHANGELOG.md:
+ *
+ *   + The `test_dump_restore__pg_safer_settings_table()` procedure was taught
+ *     to test what happens when working with a subextension that also adds a
+ *     configuration table registered with the `pg_safer_settings_table`.
+ */
 create or replace procedure test_dump_restore__pg_safer_settings_table(test_stage$ text)
     set search_path from current
     set plpgsql.check_asserts to true
@@ -55,58 +109,91 @@ begin
 end;
 $$;
 
---------------------------------------------------------------------------------------------------------------
 
--- Change faulty `column_name != any` into `not column_name = any`.
-create or replace function pg_safer_settings_table_columns(table_schema$ name, table_name$ name)
-    returns setof information_schema.columns
-    stable
-    returns null on null input
-    leakproof
-    parallel safe
+/**
+ * CHANGELOG.md:
+ *
+ *   + `pg_safer_settings_table__update_on_copy()` is a new trigger function,
+ *     which serves to let `pg_safer_settings`-managed config tables be updated
+ *     instead of `INSERT/*ed*/ INTO` on `COPY FROM`—that is, while a config
+ *     table is being `pg_restore`d from a `pg_dump`.
+ *     ~
+ *     Note that there is no need (or use) for the upgrade script to add this
+ *     trigger to already existing config tables, because the triggers are
+ *     recreated anyway when the extension is restored during `pg_restore`.
+ */
+create function pg_safer_settings_table__update_on_copy()
+    returns trigger
     set search_path from current
-    set pg_readme.include_this_routine_definition to true
-    language sql
-begin atomic
-    select
-        columns.*
-    from
-        information_schema.columns
-    where
-        columns.table_schema = table_schema$
-        and columns.table_name = table_name$
-        and not columns.column_name = any (array['is_singleton', 'inserted_at', 'updated_at']);
+    language plpgsql
+    as $$
+declare
+    _copying bool;
+begin
+    assert tg_when = 'BEFORE';
+    assert tg_level = 'ROW';
+    assert tg_op = 'INSERT';
+    assert tg_relid in (select table_regclass from pg_safer_settings_table);
+
+    -- When we are inside a `COPY` command, it is likely that we're restoring from a `pg_dump`.
+    -- Otherwise, why would you want to bulk insert into a singleton table (with max. 1 row)?
+    _copying := tg_op = 'INSERT' and exists (
+        select from
+            pg_stat_progress_copy
+        where
+            relid = tg_relid
+            and command = 'COPY FROM'
+            and type = 'PIPE'
+    );
+
+    if _copying then
+        execute 'UPDATE ' || tg_relid::regclass::text || ' SET '
+            || (
+                select
+                    string_agg(
+                        quote_ident(pg_attribute.attname) || ' = $1.' || quote_ident(pg_attribute.attname)
+                        ,', '
+                    )
+                from
+                    pg_catalog.pg_attribute
+                where
+                    pg_attribute.attrelid = tg_relid
+                    and pg_attribute.attnum > 0
+            )
+            using NEW;
+
+        return null;  -- Cancel INSERT.
+    end if;
+
+    return NEW;
 end;
+$$;
 
---------------------------------------------------------------------------------------------------------------
+comment on function pg_safer_settings_table__update_on_copy() is
+$md$`UPDATE` instead of `INSERT` when triggered from a `COPY FROM STDIN` statement.
 
-alter table pg_safer_settings_table
-    add column owning_extension_name name
-    ,add column owning_extension_version text
-;
-
-comment on column pg_safer_settings_table.owning_extension_name is
-$md$The name of the extension that registered a specific settings table.
-
-Make sure that this column contains the name of your extension if your extension inserts a `pg_safer_settings_table` through its set up scripts.
+Without this trigger, when another extension sets up a `pg_safer_settings_table` from one of its setup scripts
 $md$;
 
-comment on column pg_safer_settings_table.owning_extension_version is
-$md$The version of the extension that registered a specific settings table.
 
-This version is set automatically by the `pg_safer_settings_table__register()`
-trigger function.
-$md$;
-
-select pg_catalog.pg_extension_config_dump(
-    'pg_safer_settings_table'
-    ,'WHERE owning_extension_name IS NULL'
-);
-
---------------------------------------------------------------------------------------------------------------
-
--- Add helpful comment.
--- `CREATE TRIGGER update_on_copy`
+/**
+ * CHANGELOG.md:
+ *
+ *   + The `pg_safer_settings_table__register()` trigger function was updated to
+ *     set up an `update_on_copy` trigger using the aforementioned trigger
+ *     function on newly-registered `pg_safer_settings`-managed config tables.
+ *
+ *   + (The code documentation in the `pg_safer_settings_table__register()`
+ *     function is improved, as is the comments on the `no_delete` trigger
+ *     created _by_ that function.)
+ *
+ *   + When another extension registers its own `pg_safer_settings`-managed
+ *     configuration table (and telling so to the registery in
+ *     `pg_safer_settings_table` by specifying its `owning_extension_name`,
+ *     the `pg_safer_settings_table__register()` trigger function will now
+ *     make sure that the contents of the newly registered table are
+ *     included by `pg_dump`.
+ */
 create or replace function pg_safer_settings_table__register()
     returns trigger
     set search_path from current
@@ -272,59 +359,30 @@ $markdown$';
 end;
 $$;
 
---------------------------------------------------------------------------------------------------------------
 
-create function pg_safer_settings_table__update_on_copy()
-    returns trigger
+/**
+ * CHANGELOG.md:
+ *
+ * - A faulty comparison was fixed in the `pg_safer_settings_table_columns()`
+ *   function; `column_name != any` was was supposed to be `not column_name =
+ *   any`.
+ */
+create or replace function pg_safer_settings_table_columns(table_schema$ name, table_name$ name)
+    returns setof information_schema.columns
+    stable
+    returns null on null input
+    leakproof
+    parallel safe
     set search_path from current
-    language plpgsql
-    as $$
-declare
-    _copying bool;
-begin
-    assert tg_when = 'BEFORE';
-    assert tg_level = 'ROW';
-    assert tg_op = 'INSERT';
-    assert tg_relid in (select table_regclass from pg_safer_settings_table);
-
-    -- When we are inside a `COPY` command, it is likely that we're restoring from a `pg_dump`.
-    -- Otherwise, why would you want to bulk insert into a singleton table (with max. 1 row)?
-    _copying := tg_op = 'INSERT' and exists (
-        select from
-            pg_stat_progress_copy
-        where
-            relid = tg_relid
-            and command = 'COPY FROM'
-            and type = 'PIPE'
-    );
-
-    if _copying then
-        execute 'UPDATE ' || tg_relid::regclass::text || ' SET '
-            || (
-                select
-                    string_agg(
-                        quote_ident(pg_attribute.attname) || ' = $1.' || quote_ident(pg_attribute.attname)
-                        ,', '
-                    )
-                from
-                    pg_catalog.pg_attribute
-                where
-                    pg_attribute.attrelid = tg_relid
-                    and pg_attribute.attnum > 0
-            )
-            using NEW;
-
-        return null;  -- Cancel INSERT.
-    end if;
-
-    return NEW;
+    set pg_readme.include_this_routine_definition to true
+    language sql
+begin atomic
+    select
+        columns.*
+    from
+        information_schema.columns
+    where
+        columns.table_schema = table_schema$
+        and columns.table_name = table_name$
+        and not columns.column_name = any (array['is_singleton', 'inserted_at', 'updated_at']);
 end;
-$$;
-
-comment on function pg_safer_settings_table__update_on_copy() is
-$md$`UPDATE` instead of `INSERT` when triggered from a `COPY FROM STDIN` statement.
-
-Without this trigger, when another extension sets up a `pg_safer_settings_table` from one of its setup scripts
-$md$;
-
---------------------------------------------------------------------------------------------------------------

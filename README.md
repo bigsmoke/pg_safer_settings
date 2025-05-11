@@ -1,8 +1,8 @@
 ---
 pg_extension_name: pg_safer_settings
-pg_extension_version: 0.8.12
-pg_readme_generated_at: 2024-03-08 16:47:30.417977+00
-pg_readme_version: 0.6.6
+pg_extension_version: 1.0.0
+pg_readme_generated_at: 2025-05-11 20:24:50.072565+01
+pg_readme_version: 0.7.0
 ---
 
 # The `pg_safer_settings` PostgreSQL extension
@@ -230,6 +230,25 @@ The `pg_safer_settings_table` table has 8 attributes:
 
 ### Routines
 
+#### Function: `pg_db_role_setting (oid, regrole, jsonb)`
+
+Construct `pg_db_role_setting` row type, to avoid awkwardly contructing array of key-value strings.
+
+See the [`test__pg_db_role_setting()`](#procedure-test__pg_db_role_setting)
+procedure for example usage of the `pg_db_role_setting()` constructor.
+
+Function arguments:
+
+| Arg. # | Arg. mode  | Argument name                                                     | Argument type                                                        | Default expression  |
+| ------ | ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
+|   `$1` |       `IN` | `db$`                                                             | `oid`                                                                |  |
+|   `$2` |       `IN` | `role$`                                                           | `regrole`                                                            |  |
+|   `$3` |       `IN` | `vars$`                                                           | `jsonb`                                                              |  |
+
+Function return type: `pg_db_role_setting`
+
+Function attributes: `STABLE`, `LEAKPROOF`, `PARALLEL SAFE`
+
 #### Function: `pg_db_setting (text, regrole)`
 
 `pg_db_setting()` allows you to look up a setting value as `SET` for a `DATABASE` or `ROLE`, ignoring the local (transaction or session) value for that setting.
@@ -286,7 +305,7 @@ Function return type: `text`
 
 Function-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
   *  `SET pg_readme.include_view_definitions TO true`
   *  `SET pg_readme.include_routine_definitions_like TO {test__%}`
 
@@ -310,7 +329,7 @@ Function return type: `trigger`
 
 Function-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
 
 #### Function: `pg_safer_settings_table__col_must_mirror_db_role_setting()`
 
@@ -342,7 +361,7 @@ Function return type: `trigger`
 
 Function-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
 
 #### Function: `pg_safer_settings_table_columns (name, name)`
 
@@ -359,15 +378,15 @@ Function attributes: `STABLE`, `LEAKPROOF`, `RETURNS NULL ON NULL INPUT`, `PARAL
 
 Function-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
   *  `SET pg_readme.include_this_routine_definition TO true`
 
 ```sql
-CREATE OR REPLACE FUNCTION ext.pg_safer_settings_table_columns("table_schema$" name, "table_name$" name)
+CREATE OR REPLACE FUNCTION pg_safer_settings_table_columns("table_schema$" name, "table_name$" name)
  RETURNS SETOF information_schema.columns
  LANGUAGE sql
  STABLE PARALLEL SAFE STRICT LEAKPROOF
- SET search_path TO 'ext', 'ext', 'pg_temp'
+ SET search_path TO 'ext', 'pg_temp'
  SET "pg_readme.include_this_routine_definition" TO 'true'
 BEGIN ATOMIC
  SELECT columns.table_catalog,
@@ -441,7 +460,7 @@ Function return type: `trigger`
 
 Function-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
 
 #### Function: `pg_safer_settings_table__mirror_col_to_db_role_setting()`
 
@@ -455,7 +474,28 @@ Function return type: `trigger`
 
 Function-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
+
+#### Function: `pg_safer_settings_table__no_delete()`
+
+This trigger function is attached to each configuration table managed through the `pg_safer_settings_table` registry to altogether forbid `DELETE`ion of the singleton in these tables.
+
+`pg_safer_settings`-managed configuration tables should always contain a single
+row, which is why `DELETE` is blocked for every such table created via
+[`pg_safer_settings_table`] registry and its main trigger function:
+[`pg_safer_settings_table__register()`]
+
+[`pg_safer_settings_table`]:
+    #table-pg_safer_settings_table
+
+[`pg_safer_settings_table__register()`]:
+    #function-pg_safer_settings_table__register
+
+Function return type: `trigger`
+
+Function-local settings:
+
+  *  `SET search_path TO ext, pg_temp`
 
 #### Function: `pg_safer_settings_table__register()`
 
@@ -465,7 +505,7 @@ Function return type: `trigger`
 
 Function-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
 
 #### Function: `pg_safer_settings_table__update_on_copy()`
 
@@ -483,7 +523,7 @@ Function return type: `trigger`
 
 Function-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
 
 #### Function: `pg_safer_settings_version()`
 
@@ -503,14 +543,14 @@ Procedure arguments:
 
 Procedure-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
   *  `SET plpgsql.check_asserts TO true`
   *  `SET pg_readme.include_this_routine_definition TO true`
 
 ```sql
-CREATE OR REPLACE PROCEDURE ext.test_dump_restore__pg_safer_settings_table(IN "test_stage$" text)
+CREATE OR REPLACE PROCEDURE test_dump_restore__pg_safer_settings_table(IN "test_stage$" text)
  LANGUAGE plpgsql
- SET search_path TO 'ext', 'ext', 'pg_temp'
+ SET search_path TO 'ext', 'pg_temp'
  SET "plpgsql.check_asserts" TO 'true'
  SET "pg_readme.include_this_routine_definition" TO 'true'
 AS $procedure$
@@ -577,25 +617,45 @@ end;
 $procedure$
 ```
 
-#### Procedure: `test__pg_db_setting()`
-
-This routine tests the `pg_db_setting()` function.
-
-The routine name is compliant with the `pg_tst` extension. An intentional
-choice has been made to not _depend_ on the `pg_tst` extension its test runner
-or developer-friendly assertions to keep the number of inter-extension
-dependencies to a minimum.
+#### Procedure: `test__pg_db_role_setting()`
 
 Procedure-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
   *  `SET plpgsql.check_asserts TO true`
   *  `SET pg_readme.include_this_routine_definition TO true`
 
 ```sql
-CREATE OR REPLACE PROCEDURE ext.test__pg_db_setting()
+CREATE OR REPLACE PROCEDURE test__pg_db_role_setting()
  LANGUAGE plpgsql
- SET search_path TO 'ext', 'ext', 'pg_temp'
+ SET search_path TO 'ext', 'pg_temp'
+ SET "plpgsql.check_asserts" TO 'true'
+ SET "pg_readme.include_this_routine_definition" TO 'true'
+AS $procedure$
+declare
+    _db_oid oid := (select oid from pg_database where datname = current_database());
+begin
+    assert pg_db_role_setting(_db_oid, current_user::regrole, '{"var_1": "one", "var_2": "two"}'::jsonb) = row(
+        _db_oid, current_user::regrole, '{var_1=one,var_2=two}'::text
+    )::pg_db_role_setting;
+end;
+$procedure$
+```
+
+#### Procedure: `test__pg_db_setting()`
+
+Test and demonstrate `pg_db_role_setting()` constructor function.
+
+Procedure-local settings:
+
+  *  `SET search_path TO ext, pg_temp`
+  *  `SET plpgsql.check_asserts TO true`
+  *  `SET pg_readme.include_this_routine_definition TO true`
+
+```sql
+CREATE OR REPLACE PROCEDURE test__pg_db_setting()
+ LANGUAGE plpgsql
+ SET search_path TO 'ext', 'pg_temp'
  SET "plpgsql.check_asserts" TO 'true'
  SET "pg_readme.include_this_routine_definition" TO 'true'
 AS $procedure$
@@ -626,13 +686,13 @@ $procedure$
 
 Procedure-local settings:
 
-  *  `SET search_path TO ext, ext, pg_temp`
+  *  `SET search_path TO ext, pg_temp`
   *  `SET pg_readme.include_this_routine_definition TO true`
 
 ```sql
-CREATE OR REPLACE PROCEDURE ext.test__pg_safer_settings_table()
+CREATE OR REPLACE PROCEDURE test__pg_safer_settings_table()
  LANGUAGE plpgsql
- SET search_path TO 'ext', 'ext', 'pg_temp'
+ SET search_path TO 'ext', 'pg_temp'
  SET "pg_readme.include_this_routine_definition" TO 'true'
 AS $procedure$
 declare

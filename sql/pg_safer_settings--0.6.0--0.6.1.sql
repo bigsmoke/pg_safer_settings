@@ -1,8 +1,13 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
+/**
+ * CHANGELOG.md:
+ *
+ * - The new `pg_safer_settings_version()` function returns the currently
+ *   (being) installed version of the `pg_safer_settings` extension.
+ */
 create function pg_safer_settings_version()
     returns text
     stable
@@ -23,14 +28,29 @@ comment
 Returns the currently (being) installed version of the `pg_safer_settings` extension.
 $markdown$;
 
---------------------------------------------------------------------------------------------------------------
 
+/**
+ * CHANGELOG.md:
+ *
+ * - The `pg_safer_settings_version` column of the `pg_safer_settings_table`
+ *   registry table was altered to use this new `pg_safer_settings_version()`
+ *   function for its default expression instead of the too generic
+ *   `pg_installed_extension_version(name)` function which was misguidedly part
+ *   of more than one of Rowan's PostgreSQL extensions.
+ */
 alter table pg_safer_settings_table
     alter column pg_safer_settings_version
         set default pg_safer_settings_version();
 
---------------------------------------------------------------------------------------------------------------
 
+/**
+ * CHANGELOG.md:
+ *
+ * - If the generic `pg_installed_extension_version(name)` function was
+ *   installed _and_ owned by the `pg_safer_settings` extension, that function
+ *   will be dropped when you upgrade from `pg_safer_settings` 0.6.0 to
+ *   `pg_safer_settings` 0.6.1.
+ */
 do $$
 begin
     if to_regprocedure('pg_installed_extension_version(name)') is not null then
@@ -59,9 +79,14 @@ exception
 end;
 $$;
 
---------------------------------------------------------------------------------------------------------------
 
-create or replace function pg_safer_settings_meta_pgxn()
+/**
+ * CHANGELOG.md:
+ *
+ * - The `pg_safer_settings` project is now PGXN compatible.  The `META.json`
+ *   file is generated using the new `pg_safer_settings_meta_pgxn()` funciton.
+ */
+create function pg_safer_settings_meta_pgxn()
     returns jsonb
     stable
     language sql
@@ -137,8 +162,6 @@ create or replace function pg_safer_settings_meta_pgxn()
         ]
     );
 
---------------------------------------------------------------------------------------------------------------
-
 comment
     on function pg_safer_settings_meta_pgxn()
     is $markdown$
@@ -153,8 +176,13 @@ And indeed, `pg_safer_settings` can be found on PGXN:
 https://pgxn.org/dist/pg_safer_settings/
 $markdown$;
 
---------------------------------------------------------------------------------------------------------------
 
+/**
+ * CHANGELOG.md:
+ *
+ * - An _Origin_ section was added to the `README.md`, to credit the FlashMQ
+ *   project as the soil from whence which this project grew.
+ */
 comment
     on extension pg_safer_settings
     is $markdown$
@@ -260,4 +288,10 @@ and, in so doing:
 <?pg-readme-colophon?>
 $markdown$;
 
---------------------------------------------------------------------------------------------------------------
+
+/**
+ * CHANGELOG.md:
+ *
+ * - The `README.md` was regenerated using the newest version of the
+ *   [`pg_readme`](https://github.com/bigsmoke/pg_readme) extension.
+ */

@@ -1,8 +1,13 @@
 -- Complain if script is sourced in `psql`, rather than via `CREATE EXTENSION`.
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
+/**
+ * CHANGELOG.md:
+ *
+ * - The technical characteristics and design choices of the behavior of the
+ *   `pg_safer_settings_table` table are now extensively documented.
+ */
 comment on table pg_safer_settings_table is
 $md$Insert a row in `pg_safer_settings_table` to have its triggers automatically create _your_ configuration table, plus the requisite triggers that create and replace the `current_<cfg_column>()` functions as needed.
 
@@ -49,5 +54,3 @@ The disadvantage of dividing settings over columns rather than rows is:
 
 1. If you need/want to do concurrent updates, you may run into lock contention.
 $md$;
-
---------------------------------------------------------------------------------------------------------------

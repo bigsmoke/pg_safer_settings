@@ -1,8 +1,14 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
+/**
+ * CHANGELOG.md:
+ *
+ * - The `pg_dump`-ing and `pg_restore`-ing of settings managed by
+ *   `pg_safer_settings` is now also tested automatically, by the
+ *   `test_dump_restore__pg_safer_settings_table()` procedure.
+ */
 create procedure test_dump_restore__pg_safer_settings_table(test_stage$ text)
     set search_path from current
     set plpgsql.check_asserts to true
@@ -46,10 +52,24 @@ begin
 end;
 $$;
 
---------------------------------------------------------------------------------------------------------------
 
--- Don't mind pre-existing config-table if trigger function is executed in the context of a COPY command.
--- Improve error messages when trying to INSERT (not COPY) a row for a table that _does_ already exist.
+/**
+ * CHANGELOG.md:
+ *
+ * - The new `test_dump_restore__pg_safer_settings_table()` procedure did
+ *   indeed expose a bug in `pg_safer_settings` while restoring: the
+ *   `pg_safer_settings_table__register()` function crashed when a
+ *   `pg_safer_settings`-managed config table already existed, even in the
+ *   context of a `COPY` command.
+ *
+ *   + `pg_safer_settings_table__register()` now no longer minds if the
+ *     registered table already exists, as long as the trigger is executed
+ *     in the context of a `COPY` command.
+ *
+ *   + Additionally, error messages that are raised when trying to `INSERT`
+ *     (not `COPY`) a row for a table that _does_ already exist have been
+ *     improved.
+ */
 create or replace function pg_safer_settings_table__register()
     returns trigger
     set search_path from current
@@ -195,8 +215,14 @@ $markdown$';
 end;
 $$;
 
+
+/**
+ * CHANGELOG.md:
+ *
+ *   + And a `comment on function pg_safer_settings_table__register()` makes it
+ *     so that the trigger function now also has a description in the
+ *     `README.md`.
+ */
 comment on function pg_safer_settings_table__register() is
 $md$This trigger function creates and maintains the safer settings tables that are registered with it.
 $md$;
-
---------------------------------------------------------------------------------------------------------------

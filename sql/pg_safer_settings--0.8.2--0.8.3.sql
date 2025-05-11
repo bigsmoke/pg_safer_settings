@@ -1,9 +1,14 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
--- Don't quote `PUBLIC` in `GRANT … TO PUBLIC`.
+/**
+ * CHANGELOG.md:
+ *
+ * - The `pg_safer_settings_table__create_or_replace_getters()` trigger function
+ *   was fixed to not quote the `PUBLIC` keyword in the `GRANT … TO PUBLIC`
+ *   command.
+ */
 create or replace function pg_safer_settings_table__create_or_replace_getters()
     returns trigger
     set search_path from current
@@ -121,5 +126,3 @@ $md$                    $sqlstr$;
     return NEW;
 end;
 $$;
-
---------------------------------------------------------------------------------------------------------------

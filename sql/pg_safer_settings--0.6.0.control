@@ -1,0 +1,2 @@
+relocatable = true
+requires = 'pg_utility_trigger_functions'

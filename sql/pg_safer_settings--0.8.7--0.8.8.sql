@@ -1,9 +1,25 @@
 -- Complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
--- Add `WITH CASCADE` option to `CREATE EXENSION` statement.
+/**
+ * CHANGELOG.md:
+ *
+ * - A `CHECK` constraint was added to `pg_safer_settings_table` to enforce
+ *   that either the `owning_extension_name` and `owning_extension_version`
+ *   columns are both null or neither of them are null.
+ */
+alter table pg_safer_settings_table
+    add check ((owning_extension_name is null) = (owning_extension_version is null));
+
+
+/**
+ * CHANGELOG.md:
+ *
+ * - The `pg_safer_settings_readme()` function now installs the `pg_readme`
+ *   extension `WITH CASCADE`, in case that its `hstore` dependency is also
+ *   not already installed while the function is running.
+ */
 create or replace function pg_safer_settings_readme()
     returns text
     volatile
@@ -27,13 +43,31 @@ exception
 end;
 $plpgsql$;
 
+
+/**
+ * CHANGELOG.md:
+ *
+ * - Some `COMMENT`s were improved and cleaned up, so that:
+ *
+ *   + the first (synopsis) paragraph is always on one line,
+ *   + which is also the first line of the `comment`, and
+ *   + there are no links on that line;
+ *
+ *   This concerned the `COMMENT`s:
+ *
+ *   1. `on function pg_safer_settings_readme()`;
+ */
 comment on function pg_safer_settings_readme() is
 $md$This function utilizes the `pg_readme` extension to generate a thorough README for this extension, based on the `pg_catalog` and the `COMMENT` objects found therein.
 $md$;
 
---------------------------------------------------------------------------------------------------------------
 
--- Remove link and fix punctuation in synopsis sentence.
+/**
+ * CHANGELOG.md:
+ *
+ *   2. `on function pg_safer_settings_meta_pgxn()`, which also had some
+ *      punctuation fixed;
+ */
 comment on function pg_safer_settings_meta_pgxn() is
 $md$Returns the JSON meta data that has to go into the `META.json` file needed for PGXN—PostgreSQL Extension Network—packages.
 
@@ -45,14 +79,12 @@ And indeed, `pg_safer_settings` can be found on PGXN:
 https://pgxn.org/dist/pg_safer_settings/
 $md$;
 
---------------------------------------------------------------------------------------------------------------
 
-alter table pg_safer_settings_table
-    add check ((owning_extension_name is null) = (owning_extension_version is null));
-
---------------------------------------------------------------------------------------------------------------
-
--- Put first sentence entirely on one line.
+/**
+ * CHANGELOG.md:
+ *
+ *   3. `on table pg_safer_settings_table`;
+ */
 comment on table pg_safer_settings_table is
 $md$Insert a row in `pg_safer_settings_table` to have its triggers automatically create _your_ configuration table, plus the requisite triggers that create and replace the `current_<cfg_column>()` functions as needed.
 
@@ -71,7 +103,12 @@ INSERT INTO ext.pg_safer_settings_table DEFAULT VALUES
 ```
 $md$;
 
--- Put first sentence entirely on one line.
+
+/**
+ * CHANGELOG.md:
+ *
+ *   4. `on column pg_safer_settings_table.secret_setting_prefix`;
+ */
 comment on column pg_safer_settings_table.secret_setting_prefix is
 $md$When a setting's column name starts with the `secret_setting_prefix`, its automatically generated getter function will be a `STABLE` function that, when called, looks up the column value in the table rather than the default `IMMUTABLE` function (with the configuration value cached in the `RETURN` clause) that would otherwise have been created.
 
@@ -81,9 +118,12 @@ role has not been granted `SELECT` privileges on the column (nor `EXECUTE`
 access to the `IMMUTABLE` function).
 $md$;
 
---------------------------------------------------------------------------------------------------------------
 
--- Put first sentence entirely on one line.
+/**
+ * CHANGELOG.md:
+ *
+ *   5. `on function pg_safer_settings_table__col_must_mirror_current_setting()`; and
+ */
 comment on function pg_safer_settings_table__col_must_mirror_current_setting() is
 $md$If you want to forbid changing a configuration table column value to something that is not in sync with the current value of the given setting, use this trigger function.
 
@@ -100,9 +140,12 @@ create constraint trigger must_mirror_db_role_setting__max_plumbus_count
 ```
 $md$;
 
---------------------------------------------------------------------------------------------------------------
 
--- Put first sentence entirely on one line.
+/**
+ * CHANGELOG.md:
+ *
+ *   6. `on function pg_safer_settings_table__col_must_mirror_db_role_setting()`;
+ */
 comment on function pg_safer_settings_table__col_must_mirror_db_role_setting() is
 $md$If you want to forbid changing a configuration table column value to something that is not in sync with the given setting (for the optionally given `ROLE`) `SET` on the `DATABASE` level, this trigger function is your friend.
 
@@ -128,5 +171,3 @@ catch configuration changes as the `ALTER DATABASE` level as they happen.
 Triggers using this function will only catch incompatibilities when the trigger
 is … triggered.
 $md$;
-
---------------------------------------------------------------------------------------------------------------

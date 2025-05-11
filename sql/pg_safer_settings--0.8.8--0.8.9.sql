@@ -1,8 +1,15 @@
 -- Complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
+/**
+ * CHANGELOG.md:
+ *
+ * - An _Authors and contributors_ section was added to the `COMMENT ON
+ *   EXTENSION` from which the `README.md` is generated (using the
+ *   `pg_safer_settings_readme()` function, powerd by the `pg_readme`
+ *   extension).
+ */
 comment on extension pg_safer_settings is $markdown$
 # The `pg_safer_settings` PostgreSQL extension
 
@@ -121,5 +128,3 @@ and, in so doing:
 
 <?pg-readme-colophon?>
 $markdown$;
-
---------------------------------------------------------------------------------------------------------------

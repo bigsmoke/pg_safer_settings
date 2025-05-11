@@ -1,9 +1,13 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_safer_settings" to load this file. \quit
 
---------------------------------------------------------------------------------------------------------------
 
--- Change license from AGPL 3.0 to the PostgreSQL license.
+/**
+ * CHANGELOG.md:
+ *
+ * - The license of `pg_safer_settings` was changed from AGPL 3.0 to the
+ *   PostgreSQL license.
+ */
 create or replace function pg_safer_settings_meta_pgxn()
     returns jsonb
     stable
@@ -79,5 +83,3 @@ create or replace function pg_safer_settings_meta_pgxn()
             'trigger'
         ]
     );
-
---------------------------------------------------------------------------------------------------------------
